@@ -57,18 +57,18 @@ class Lottery(commands.Cog):
 
                     new_entries, total_entries = self.db.add_donation(donor.id, amount)
 
-                embed = discord.Embed(title="🎉 Donation Tracked!", color=discord.Color.green())
-                embed.add_field(name="Donor", value=donor.mention, inline=True)
-                embed.add_field(name="Amount", value=f"{amount:,} coins", inline=True)
-                embed.add_field(name="New Entries", value=str(new_entries), inline=True)
-                embed.add_field(name="Total Entries", value=str(total_entries), inline=True)
-                embed.set_footer(text=f"1 entry per {Config.ENTRY_THRESHOLD:,} coins donated")
+                    embed = discord.Embed(title="🎉 Donation Tracked!", color=discord.Color.green())
+                    embed.add_field(name="Donor", value=donor.mention, inline=True)
+                    embed.add_field(name="Amount", value=f"{amount:,} coins", inline=True)
+                    embed.add_field(name="New Entries", value=str(new_entries), inline=True)
+                    embed.add_field(name="Total Entries", value=str(total_entries), inline=True)
+                    embed.set_footer(text=f"1 entry per {Config.ENTRY_THRESHOLD:,} coins donated")
 
-                await message.channel.send(embed=embed)
-                logger.info(f"Automatically tracked donation: {donor.id} donated {amount} coins")
+                    await message.channel.send(embed=embed)
+                    logger.info(f"Automatically tracked donation: {donor.id} donated {amount} coins")
 
-            except Exception as e:
-                logger.error(f"Error processing donation message: {str(e)}")
+                except Exception as e:
+                    logger.error(f"Error processing donation message: {str(e)}")
 
     def cog_unload(self):
         self.check_status.cancel()
