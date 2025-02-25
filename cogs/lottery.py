@@ -44,13 +44,18 @@ class Lottery(commands.Cog):
                     amount_str = ''.join(filter(str.isdigit, embed.description))
                     amount = int(amount_str)
                     
-                    # Get donor from message author
-                    donor = message.interaction.user if message.interaction else message.author
+                    # Get donor from message reference
+                    if message.reference and message.reference.resolved:
+                        donor = message.reference.resolved.author
+                    else:
+                        # Fallback to message author
+                        donor = message.author
+
                     if not donor:
                         logger.error("Could not find donor")
                         return
 
-                new_entries, total_entries = self.db.add_donation(donor.id, amount)
+                    new_entries, total_entries = self.db.add_donation(donor.id, amount)
 
                 embed = discord.Embed(title="🎉 Donation Tracked!", color=discord.Color.green())
                 embed.add_field(name="Donor", value=donor.mention, inline=True)
