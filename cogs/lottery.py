@@ -182,7 +182,6 @@ class Lottery(commands.Cog):
 
         except Exception as e:
             logger.error(f"Error in pickwinner command: {str(e)}")
-            await ctx.send("❌ An error occurred while picking the winner.")
 
     @tasks.loop(minutes=5.0)
     async def check_status(self):
@@ -261,7 +260,6 @@ class Lottery(commands.Cog):
             await ctx.send(embed=embed)
         except Exception as e:
             logger.error(f"Error in status command: {str(e)}")
-            await ctx.send("❌ Error checking bot status.")
 
 
 async def setup(bot):
