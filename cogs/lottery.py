@@ -38,21 +38,17 @@ class Lottery(commands.Cog):
         # Check for Dank Memer donation embed
         if message.embeds:
             embed = message.embeds[0]
-            if "successfully donated ([/d,]+)" in embed.description.lower():
+            if "successfully donated" in embed.description.lower():
                 try:
                     # Extract amount from embed description
                     amount_str = ''.join(filter(str.isdigit, embed.description))
                     amount = int(amount_str)
                     
-                    # Get donor from the message reference or interaction
-                    donor = message.reference.resolved.author if message.reference else None
+                    # Get donor from message author
+                    donor = message.interaction.user if message.interaction else message.author
                     if not donor:
-                        for user in message.mentions:
-                            donor = user
-                            break
-                if not donor:
-                    logger.error(f"Could not find donor member: {donor_name}")
-                    return
+                        logger.error("Could not find donor")
+                        return
 
                 new_entries, total_entries = self.db.add_donation(donor.id, amount)
 
