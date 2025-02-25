@@ -36,7 +36,7 @@ class Lottery(commands.Cog):
             return
 
         # Pattern to match Dank Memer's donation message
-        donation_pattern = r"(?i)(.*) donated ([\d,]+) coins? to (.*)"
+        donation_pattern = r"Successfully donated ([\d,]+)"
         match = re.search(donation_pattern, message.content)
 
         if match:
