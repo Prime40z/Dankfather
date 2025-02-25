@@ -26,6 +26,29 @@ class Lottery(commands.Cog):
         self._disconnected_time = None
         self.connection_monitor.start()
 
+    async def process_donation_message(self, message):
+        """Process a potential donation message from Dank Memer"""
+        if message.embeds:
+            embed = message.embeds[0]
+            if embed.description and any(phrase in embed.description.lower() for phrase in ["successfully donated", "donation of"]):
+                try:
+                    # Extract amount using regex
+                    match = re.search(r'(\d+)', embed.description)
+                    if not match:
+                        return
+                    
+                    amount = int(match.group(1))
+                    
+                    # Get donor from the first mentioned user
+                    donor = None
+                    if len(message.mentions) > 0:
+                        donor = message.mentions[0]
+                    elif message.reference and message.reference.resolved:
+                        donor = message.reference.resolved.author
+                        
+                    if not donor:
+                        return
+
     @commands.Cog.listener()
     async def on_message(self, message):
         """Listen for Dank Memer donation messages"""
@@ -34,11 +57,25 @@ class Lottery(commands.Cog):
 
         if message.channel.id != Config.LOTTERY_CHANNEL_ID:
             return
+            
+        await self.process_donation_message(message)
 
-        # Check for Dank Memer donation embed
+    @commands.Cog.listener()
+    async def on_message_edit(self, before, after):
+        """Listen for edited Dank Memer donation messages"""
+        if after.author.id != Config.DANK_MEMER_ID:
+            return
+            
+        if after.channel.id != Config.LOTTERY_CHANNEL_ID:
+            return
+            
+        await self.process_donation_message(after)
+            
+    async def process_donation_message(self, message):
+        """Process a potential donation message from Dank Memer"""
         if message.embeds:
             embed = message.embeds[0]
-            if "successfully donated" in embed.description.lower():
+            if embed.description and any(phrase in embed.description.lower() for phrase in ["successfully donated", "donation of"]):
                 try:
                     # Extract amount from embed description
                     amount_str = ''.join(filter(str.isdigit, embed.description))
