@@ -35,18 +35,21 @@ class Lottery(commands.Cog):
         if message.channel.id != Config.LOTTERY_CHANNEL_ID:
             return
 
-        # Pattern to match Dank Memer's donation message
-        donation_pattern = r"Successfully donated ([\d,]+)"
-        match = re.search(donation_pattern, message.content)
-
-        if match:
-            try:
-                donor_name = match.group(1)
-                amount = int(match.group(2).replace(',', ''))
-                receiver_name = match.group(3)
-
-                # Find the donor's member object
-                donor = message.guild.get_member_named(donor_name)
+        # Check for Dank Memer donation embed
+        if message.embeds:
+            embed = message.embeds[0]
+            if "successfully donated ([/d,]+)" in embed.description.lower():
+                try:
+                    # Extract amount from embed description
+                    amount_str = ''.join(filter(str.isdigit, embed.description))
+                    amount = int(amount_str)
+                    
+                    # Get donor from the message reference or interaction
+                    donor = message.reference.resolved.author if message.reference else None
+                    if not donor:
+                        for user in message.mentions:
+                            donor = user
+                            break
                 if not donor:
                     logger.error(f"Could not find donor member: {donor_name}")
                     return
