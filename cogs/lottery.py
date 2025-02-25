@@ -105,24 +105,20 @@ class Lottery(commands.Cog):
         if not await self.check_lottery_channel(ctx):
             return
 
-        try:
-            cooldown = self.check_cooldown(ctx.author.id, "myentries", 30)
-            if cooldown:
-                await ctx.send(f"⌛ Please wait {cooldown} seconds before checking your entries again.")
-                return
+        cooldown = self.check_cooldown(ctx.author.id, "myentries", 30)
+        if cooldown:
+            await ctx.send(f"⌛ Please wait {cooldown} seconds before checking your entries again.")
+            return
 
-            entries = self.db.get_user_entries(ctx.author.id)
-            total_donated = self.db.get_user_total_donated(ctx.author.id)
+        entries = self.db.get_user_entries(ctx.author.id)
+        total_donated = self.db.get_user_total_donated(ctx.author.id)
 
-            embed = discord.Embed(title="🎟️ Your Lottery Entries", color=discord.Color.blue())
-            embed.add_field(name="Total Entries", value=str(entries), inline=False)
-            embed.add_field(name="Total Donated", value=f"{total_donated:,} coins", inline=False)
-            embed.set_footer(text=f"1 entry per {Config.ENTRY_THRESHOLD:,} coins donated")
+        embed = discord.Embed(title="🎟️ Your Lottery Entries", color=discord.Color.blue())
+        embed.add_field(name="Total Entries", value=str(entries), inline=False)
+        embed.add_field(name="Total Donated", value=f"{total_donated:,} coins", inline=False)
+        embed.set_footer(text=f"1 entry per {Config.ENTRY_THRESHOLD:,} coins donated")
 
-            await ctx.send(embed=embed)
-
-        except Exception as e:
-            logger.error(f"Error in myentries command: {str(e)}")
+        await ctx.send(embed=embed)
 
     @commands.command()
     async def prize(self, ctx):
