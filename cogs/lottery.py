@@ -123,7 +123,6 @@ class Lottery(commands.Cog):
 
         except Exception as e:
             logger.error(f"Error in myentries command: {str(e)}")
-            await ctx.send("❌ An error occurred while fetching your entries.")
 
     @commands.command()
     async def prize(self, ctx):
@@ -150,7 +149,6 @@ class Lottery(commands.Cog):
 
         except Exception as e:
             logger.error(f"Error in prize command: {str(e)}")
-            await ctx.send("❌ An error occurred while fetching prize information.")
 
     @commands.command()
     @commands.check(is_admin)
