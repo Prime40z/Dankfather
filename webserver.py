@@ -8,7 +8,7 @@ def home():
     return "Bot is running!"
 
 def run():
-    app.run(host='0.0.0.0', port=5000)
+    app.run(host='0.0.0.0', port=8000)
 
 def keep_alive():
     """Creates and starts new thread that runs the flask server."""
