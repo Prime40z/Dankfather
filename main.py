@@ -1,9 +1,13 @@
 import discord
 from discord.ext import commands
 import asyncio
-from config import Config
+import os
+from dotenv import load_dotenv  # Import dotenv to load environment variables
 from utils.logger import setup_logger
 from webserver import keep_alive
+
+# Load environment variables
+load_dotenv()
 
 logger = setup_logger(__name__)
 
@@ -41,7 +45,7 @@ async def run_bot():
     while retries < max_retries:
         try:
             async with bot:
-                await bot.start(Config.TOKEN)
+                await bot.start(os.getenv("DISCORD_TOKEN"))  # Load token from environment variables
         except discord.ConnectionClosed:
             retries += 1
             logger.warning(f"Connection closed. Attempting reconnection {retries}/{max_retries}")
@@ -59,7 +63,7 @@ async def run_bot():
     logger.critical("Max reconnection attempts reached. Bot shutting down.")
 
 if __name__ == "__main__":
-    if not Config.TOKEN:
+    if not os.getenv("DISCORD_TOKEN"):
         logger.error("Discord token not found in environment variables")
         exit(1)
 
