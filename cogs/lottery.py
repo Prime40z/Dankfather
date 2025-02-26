@@ -30,28 +30,32 @@ class Lottery(commands.Cog):
         """Process a potential donation message from Dank Memer"""
         if not message.guild:
             return
-            
-        if "successfully donated" in message.content.lower():
-            try:
-                # Get user ID from interaction if available
+
+        try:
+            if message.embeds and "successfully donated" in message.embeds[0].description.lower():
                 donor = None
                 if hasattr(message, 'interaction') and message.interaction:
                     donor = message.interaction.user
-                
-                if message.embeds and donor:
+
+                if donor and message.embeds:
                     embed = message.embeds[0]
                     description = embed.description or ""
-                    
-                    # Match amount with commas (e.g., 1,000,000)
+
                     amount_match = re.search(r'(\d{1,3}(?:,\d{3})*)', description)
                     if amount_match:
                         amount_str = amount_match.group(1)
                         amount = int(amount_str.replace(',', ''))
-                        
-                        logger.info(f"User {donor.id} has successfully donated {amount:,} coins!")
-                        
-                        # Process the donation in the database
+
                         new_entries, total_entries = self.db.add_donation(donor.id, amount)
+
+                        logger.info(f"User {donor.id} has successfully donated {amount:,} coins!")
+                        await message.channel.send(f"{donor.mention} has successfully donated {amount:,} coins! 🎉")
+                    else:
+                        logger.error("Could not determine donation amount")
+                else:
+                    logger.error("Could not determine the user who donated")
+        except Exception as e:
+            logger.error(f"Error processing donation: {str(e)}")
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -75,41 +79,6 @@ class Lottery(commands.Cog):
 
         await self.process_donation_message(after)
 
-    async def process_donation_message(self, message):
-        """Process a potential donation message from Dank Memer"""
-        if message.embeds:
-            embed = message.embeds[0]
-            if embed.description and ("successfully donated" in embed.description.lower() or "donation of" in embed.description.lower()):
-                try:
-                    # Extract amount from embed description
-                    amount_str = ''.join(filter(str.isdigit, embed.description))
-                    amount = int(amount_str)
-
-                    # Get donor from message reference
-                    if message.reference and message.reference.resolved:
-                        donor = message.reference.resolved.author
-                    else:
-                        # Fallback to message author
-                        donor = message.author
-
-                    if not donor:
-                        logger.error("Could not find donor")
-                        return
-
-                    new_entries, total_entries = self.db.add_donation(donor.id, amount)
-
-                    embed = discord.Embed(title="🎉 Donation Tracked!", color=discord.Color.green())
-                    embed.add_field(name="Donor", value=donor.mention, inline=True)
-                    embed.add_field(name="Amount", value=f"{amount:,} coins", inline=True)
-                    embed.add_field(name="New Entries", value=str(new_entries), inline=True)
-                    embed.add_field(name="Total Entries", value=str(total_entries), inline=True)
-                    embed.set_footer(text=f"1 entry per {Config.ENTRY_THRESHOLD:,} coins donated")
-
-                    await message.channel.send(embed=embed)
-                    logger.info(f"Automatically tracked donation: {donor.id} donated {amount} coins")
-
-                except Exception as e:
-                    logger.error(f"Error processing donation message: {str(e)}")
 
     def cog_unload(self):
         self.check_status.cancel()
