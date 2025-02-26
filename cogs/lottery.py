@@ -60,15 +60,15 @@ class Lottery(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message):
         """Listen for Dank Memer donation messages"""
+        # Ensure bot processes commands properly
+        await self.bot.process_commands(message)
+
         if message.author.id != Config.DANK_MEMER_ID:  # Dank Memer's bot ID
             return
 
         if message.channel.id != Config.LOTTERY_CHANNEL_ID:
             return
             
-        if message.content.startswith(self.bot.command_prefix):
-            return
-
         await self.process_donation_message(message)
 
     @commands.Cog.listener()
@@ -81,7 +81,6 @@ class Lottery(commands.Cog):
             return
 
         await self.process_donation_message(after)
-
 
     def cog_unload(self):
         self.check_status.cancel()
@@ -159,117 +158,34 @@ class Lottery(commands.Cog):
         except Exception as e:
             logger.error(f"Error in prize command: {str(e)}")
 
-    @commands.command()
-    @commands.check(is_admin)
-    async def pickwinner(self, ctx):
-        """Admin command to pick a Dank Memer lottery winner"""
-        if not await self.check_lottery_channel(ctx):
-            return
-
-        try:
-            entries = self.db.get_all_entries()
-            weighted_pool = [(user_id, count) for user_id, count in entries for _ in range(count)]
-
-            if not weighted_pool:
-                await ctx.send("❌ No valid entries found.")
-                return
-
-            winner_id, _ = random.choice(weighted_pool)
-            winner_user = await self.bot.fetch_user(winner_id)
-            total_prize = self.db.get_total_donations()
-            taxed_prize = total_prize * (1 - Config.TAX_RATE)
-
-            logger.info(f"Lottery winner picked: {winner_id}")
-
-            embed = discord.Embed(title="🎉 Dank Memer Lottery Winner!", color=discord.Color.green())
-            embed.add_field(name="Winner", value=winner_user.mention, inline=False)
-            embed.add_field(name="Prize Pool", value=f"{total_prize:,} coins", inline=False)
-            embed.add_field(name="Prize After Tax", value=f"{taxed_prize:,.0f} coins", inline=False)
-            embed.set_footer(text="Please send the prize using Dank Memer's trade command")
-
-            await ctx.send(embed=embed)
-
-        except Exception as e:
-            logger.error(f"Error in pickwinner command: {str(e)}")
-
     @tasks.loop(minutes=5.0)
     async def check_status(self):
         """Monitor bot status and send notifications if offline"""
         try:
-            current_time = datetime.now()
-            self.last_heartbeat = current_time
+            self.last_heartbeat = datetime.now()
             logger.info("Bot status check - Online")
         except Exception as e:
             logger.error(f"Status check failed: {str(e)}")
-            await self.notify_admins("⚠️ Bot status check failed - Please verify the bot is functioning correctly.")
 
     @tasks.loop(seconds=30)
     async def connection_monitor(self):
         """Monitor Discord connection status"""
-        if not self.bot.is_closed():
-            if self._disconnected_time:
-                downtime = datetime.now() - self._disconnected_time
-                logger.info(f"Bot reconnected after {downtime.total_seconds():.1f} seconds")
-                await self.notify_admins(f"✅ Bot reconnected after {downtime.total_seconds():.1f} seconds of downtime")
-                self._disconnected_time = None
-        else:
-            if not self._disconnected_time:
-                self._disconnected_time = datetime.now()
-                logger.warning("Bot disconnected from Discord")
-                await self.notify_admins("⚠️ Bot disconnected from Discord - Attempting to reconnect...")
-
-    async def notify_admins(self, message: str):
-        """Send notification to all admin users"""
-        try:
-            for guild in self.bot.guilds:
-                admin_roles = [role for role in guild.roles if role.name in Config.ADMIN_ROLES]
-                for role in admin_roles:
-                    for member in role.members:
-                        try:
-                            await member.send(message)
-                        except:
-                            continue
-        except Exception as e:
-            logger.error(f"Failed to notify admins: {str(e)}")
-
-    @check_status.before_loop
-    @connection_monitor.before_loop
-    async def before_task_start(self):
-        """Wait for bot to be ready before starting monitoring tasks"""
-        await self.bot.wait_until_ready()
-
-    def check_cooldown(self, user_id: int, command: str, cooldown: int) -> Optional[int]:
-        current_time = datetime.now()
-        cooldown_key = f"{user_id}:{command}"
-
-        if cooldown_key in self._cooldowns:
-            time_diff = (current_time - self._cooldowns[cooldown_key]).total_seconds()
-            if time_diff < cooldown:
-                return int(cooldown - time_diff)
-
-        self._cooldowns[cooldown_key] = current_time
-        return None
+        if self.bot.is_closed() and not self._disconnected_time:
+            self._disconnected_time = datetime.now()
+            logger.warning("Bot disconnected from Discord")
 
     @commands.command()
     async def status(self, ctx):
         """Check bot's current status and uptime"""
-        try:
-            uptime = datetime.now() - self.last_heartbeat
-            connection_status = "Connected ✅" if not self.bot.is_closed() else "Disconnected ❌"
+        uptime = datetime.now() - self.last_heartbeat
+        connection_status = "Connected ✅" if not self.bot.is_closed() else "Disconnected ❌"
 
-            embed = discord.Embed(title="🤖 Bot Status", color=discord.Color.green())
-            embed.add_field(name="Connection Status", value=connection_status, inline=False)
-            embed.add_field(name="Last Heartbeat", value=f"{self.last_heartbeat.strftime('%Y-%m-%d %H:%M:%S')}", inline=False)
-            embed.add_field(name="Uptime", value=f"{str(uptime).split('.')[0]}", inline=False)
+        embed = discord.Embed(title="🤖 Bot Status", color=discord.Color.green())
+        embed.add_field(name="Connection Status", value=connection_status, inline=False)
+        embed.add_field(name="Last Heartbeat", value=self.last_heartbeat.strftime('%Y-%m-%d %H:%M:%S'), inline=False)
+        embed.add_field(name="Uptime", value=str(uptime).split('.')[0], inline=False)
 
-            if self._disconnected_time:
-                downtime = datetime.now() - self._disconnected_time
-                embed.add_field(name="Current Downtime", value=f"{str(downtime).split('.')[0]}", inline=False)
-
-            await ctx.send(embed=embed)
-        except Exception as e:
-            logger.error(f"Error in status command: {str(e)}")
-
+        await ctx.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(Lottery(bot))
