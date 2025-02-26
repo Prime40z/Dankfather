@@ -65,6 +65,9 @@ class Lottery(commands.Cog):
 
         if message.channel.id != Config.LOTTERY_CHANNEL_ID:
             return
+            
+        if message.content.startswith(self.bot.command_prefix):
+            return
 
         await self.process_donation_message(message)
 
