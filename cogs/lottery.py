@@ -28,26 +28,30 @@ class Lottery(commands.Cog):
 
     async def process_donation_message(self, message):
         """Process a potential donation message from Dank Memer"""
-        if message.embeds:
-            embed = message.embeds[0]
-            if embed.description and any(phrase in embed.description.lower() for phrase in ["successfully donated", "donation of"]):
-                try:
-                    # Extract amount using regex
-                    match = re.search(r'(\d+)', embed.description)
-                    if not match:
-                        return
+        if not message.guild:
+            return
+            
+        if "successfully donated" in message.content.lower():
+            try:
+                # Get user ID from interaction if available
+                donor = None
+                if hasattr(message, 'interaction') and message.interaction:
+                    donor = message.interaction.user
+                
+                if message.embeds and donor:
+                    embed = message.embeds[0]
+                    description = embed.description or ""
                     
-                    amount = int(match.group(1))
-                    
-                    # Get donor from the first mentioned user
-                    donor = None
-                    if len(message.mentions) > 0:
-                        donor = message.mentions[0]
-                    elif message.reference and message.reference.resolved:
-                        donor = message.reference.resolved.author
+                    # Match amount with commas (e.g., 1,000,000)
+                    amount_match = re.search(r'(\d{1,3}(?:,\d{3})*)', description)
+                    if amount_match:
+                        amount_str = amount_match.group(1)
+                        amount = int(amount_str.replace(',', ''))
                         
-                    if not donor:
-                        return
+                        logger.info(f"User {donor.id} has successfully donated {amount:,} coins!")
+                        
+                        # Process the donation in the database
+                        new_entries, total_entries = self.db.add_donation(donor.id, amount)
 
     @commands.Cog.listener()
     async def on_message(self, message):
@@ -57,7 +61,7 @@ class Lottery(commands.Cog):
 
         if message.channel.id != Config.LOTTERY_CHANNEL_ID:
             return
-            
+
         await self.process_donation_message(message)
 
     @commands.Cog.listener()
@@ -65,22 +69,22 @@ class Lottery(commands.Cog):
         """Listen for edited Dank Memer donation messages"""
         if after.author.id != Config.DANK_MEMER_ID:
             return
-            
+
         if after.channel.id != Config.LOTTERY_CHANNEL_ID:
             return
-            
+
         await self.process_donation_message(after)
-            
+
     async def process_donation_message(self, message):
         """Process a potential donation message from Dank Memer"""
         if message.embeds:
             embed = message.embeds[0]
-            if embed.description and any(phrase in embed.description.lower() for phrase in ["successfully donated", "donation of"]):
+            if embed.description and ("successfully donated" in embed.description.lower() or "donation of" in embed.description.lower()):
                 try:
                     # Extract amount from embed description
                     amount_str = ''.join(filter(str.isdigit, embed.description))
                     amount = int(amount_str)
-                    
+
                     # Get donor from message reference
                     if message.reference and message.reference.resolved:
                         donor = message.reference.resolved.author
