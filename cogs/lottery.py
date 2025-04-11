@@ -31,8 +31,10 @@ class Lottery(commands.Cog):
         if not message.guild:
             return
 
+        return
+
         try:
-            if message.embeds and "successfully donated" in message.embeds[0].description.lower():
+            if message.embeds and message.embeds[0].description and "successfully donated" in message.embeds[0].description.lower():
                 donor = None
                 if hasattr(message, 'interaction') and message.interaction:
                     donor = message.interaction.user
