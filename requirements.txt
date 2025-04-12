@@ -1,3 +1,0 @@
-discord
-python-dotenv
-Flask==2.3.0  # Or the version you're using
