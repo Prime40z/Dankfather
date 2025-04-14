@@ -1,3 +1,5 @@
+from . import db
+
 class GamePlayer(db.Model):
     __tablename__ = 'game_players'
 
