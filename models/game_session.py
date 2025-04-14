@@ -6,10 +6,10 @@ import random
 import asyncio
 from typing import List, Dict, Optional, Any, Tuple
 
-from game.player import Player
-from game.roles import ALL_ROLES, Villager, Mafia, Detective, Doctor
-from game.phases import PhaseManager
-from game.voting import VoteManager
+from .player import Player
+from .roles import ALL_ROLES, Villager, Mafia, Detective, Doctor
+from .phases import PhaseManager
+from .voting import VoteManager
 from utils.constants import *
 from utils.helpers import get_random_death_message, get_random_lynch_message
 from utils.embeds import (
