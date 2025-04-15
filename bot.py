@@ -55,12 +55,15 @@ game_state = {
     "players": [],
     "roles": [],
     "is_active": False,
-    "game_mode": "Classic"
+    "game_mode": "Classic",
+    "day_phase": False,  # False = Night, True = Day
+    "votes": {}
 }
 
 # Available roles including the new ones
 available_roles = [
-    "Villager", "Mafia", "Doctor", "Sheriff", "Jailor", "Survivor", "Serial Killer"
+    "Villager", "Mafia", "Doctor", "Sheriff", "Jailor", "Survivor", "Serial Killer",
+    # Add more roles as needed
 ]
 
 @bot.event
@@ -93,4 +96,87 @@ async def start(ctx):
         return
 
     game_state["is_active"] = True
-    game_state["roles"]
+    game_state["roles"] = random.sample(available_roles, len(game_state["players"]))
+    game_state["day_phase"] = False  # Start with night phase
+
+    for player, role in zip(game_state["players"], game_state["roles"]):
+        try:
+            await player.send(f"Your role is: {role}")
+        except discord.Forbidden:
+            await ctx.send(f"Unable to send DM to {player.mention}. Make sure your DMs are open.")
+        except Exception as e:
+            await ctx.send(f"An error occurred while assigning a role to {player.mention}: {str(e)}")
+
+    await ctx.send(f"The game has started in {game_state['game_mode']} mode! Check your DMs for your role.")
+    await ctx.send("It is now Night. All players with night actions, please DM the bot your actions!")
+
+@bot.command()
+async def end(ctx):
+    """End the current Mafia game."""
+    if game_state["is_active"]:
+        game_state["is_active"] = False
+        game_state["players"] = []
+        game_state["roles"] = []
+        game_state["votes"] = {}
+        await ctx.send("The game has been ended.")
+    else:
+        await ctx.send("No game is currently active.")
+
+@bot.command()
+async def roles(ctx):
+    """List all available roles."""
+    try:
+        await ctx.send("Available roles: " + ", ".join(available_roles))
+    except Exception as e:
+        await ctx.send(f"An error occurred while listing roles: {str(e)}")
+
+@bot.command()
+async def vote(ctx, target: discord.Member):
+    """Vote to eliminate a player during the day phase."""
+    if not game_state["is_active"]:
+        await ctx.send("No active game to vote in.")
+        return
+
+    if not game_state["day_phase"]:
+        await ctx.send("You can only vote during the day phase.")
+        return
+
+    if target not in game_state["players"]:
+        await ctx.send(f"{target.mention} is not a valid player.")
+        return
+
+    game_state["votes"][ctx.author] = target
+    await ctx.send(f"{ctx.author.mention} has voted to eliminate {target.mention}.")
+
+@bot.command()
+async def stats(ctx, member: discord.Member = None):
+    """Show stats for a player."""
+    member = member or ctx.author
+    try:
+        stats = get_stats(str(member.id))
+        await ctx.send(f"{member.mention}'s Stats:\nGames Played: {stats[0]}\nGames Won: {stats[1]}")
+    except Exception as e:
+        await ctx.send(f"An error occurred while retrieving stats: {str(e)}")
+
+@bot.command()
+async def update_stats(ctx, winner: discord.Member):
+    """Update stats after a game."""
+    if not game_state["is_active"]:
+        await ctx.send("No active game to update stats for.")
+        return
+
+    try:
+        for player in game_state["players"]:
+            update_stat(str(player.id), "games_played")
+
+        update_stat(str(winner.id), "games_won")
+        await ctx.send(f"Stats updated! {winner.mention} is the winner!")
+    except Exception as e:
+        await ctx.send(f"An error occurred while updating stats: {str(e)}")
+
+# Run the bot
+try:
+    setup_database()
+    bot.run("MTM0MzQzMzAxNjg5ODM1NTIyMg.GRsoaN.ba_1i08cSSGcuX1BdcdUC7QVfe1V-cLVbAf5fE")
+except Exception as e:
+    print(f"An error occurred while running the bot: {str(e)}")
