@@ -1,9 +1,11 @@
-print("Bot is starting...")
+import os
 import discord
 from discord.ext import commands
 import random
 import sqlite3
-import os
+
+# Log bot startup
+print("Bot is starting...")
 
 # Initialize the bot with the specified prefix
 intents = discord.Intents.default()
@@ -61,12 +63,13 @@ game_state = {
     "votes": {}
 }
 
-# Available roles including the new ones
+# Available roles for the game
 available_roles = [
     "Villager", "Mafia", "Doctor", "Sheriff", "Jailor", "Survivor", "Serial Killer",
     # Add more roles as needed
 ]
 
+# Bot events and commands
 @bot.event
 async def on_ready():
     print(f"We have logged in as {bot.user}")
@@ -178,6 +181,6 @@ async def update_stats(ctx, winner: discord.Member):
 # Run the bot
 try:
     setup_database()
-    bot.run("MTM0MzQzMzAxNjg5ODM1NTIyMg.GRsoaN.ba_1i08cSSGcuX1BdcdUC7QVfe1V-cLVbAf5fE")
+    bot.run(os.getenv("BOT_TOKEN"))
 except Exception as e:
     print(f"An error occurred while running the bot: {str(e)}")
