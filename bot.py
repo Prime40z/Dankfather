@@ -1,9 +1,8 @@
 import os
+import asyncio
+from aiohttp import web
 import discord
 from discord.ext import commands
-from game.game_manager import GameManager
-from aiohttp import web
-import asyncio
 
 # Initialize intents for the bot
 intents = discord.Intents.all()
@@ -11,42 +10,30 @@ intents = discord.Intents.all()
 # Create the bot instance
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# Initialize the game manager
-game_manager = GameManager(bot)
-
 @bot.event
 async def on_ready():
     print(f"Logged in as {bot.user}")
 
-@bot.command()
-async def start(ctx):
-    """Command to start the game."""
-    await game_manager.start_game()
-
-# Fetch the token from the environment variable
-token = os.getenv("BOT_TOKEN")
-if not token:
-    raise ValueError("DISCORD_BOT_TOKEN environment variable not set.")
-
-# Minimal HTTP server for health checks
-async def handle_health_check(request):
-    print("Health check request received")
+# HTTP health check handler
+async def health_check(request):
     return web.Response(text="OK")
 
-async def run_http_server():
-    try:
-        app = web.Application()
-        app.router.add_get("/", handle_health_check)
-        runner = web.AppRunner(app)
-        await runner.setup()
-        site = web.TCPSite(runner, "0.0.0.0", 8000)
-        print("HTTP server is starting on http://0.0.0.0:8000...")
-        await site.start()
-        print("HTTP server is running on http://0.0.0.0:8000")
-    except Exception as e:
-        print(f"Failed to start HTTP server: {e}")
+# Function to run the aiohttp server
+def run_aiohttp_server():
+    app = web.Application()
+    app.router.add_get("/", health_check)
 
-# Run the bot and HTTP server
+    # Run the aiohttp web server
+    web.run_app(app, host="0.0.0.0", port=8000)
+
+# Fetch the bot token from environment variables
+token = os.getenv("BOT_TOKEN")
+if not token:
+    raise ValueError("DISCORD_BOT_TOKEN environment variable is not set.")
+
+# Run the aiohttp server in a separate asyncio task
 loop = asyncio.get_event_loop()
-loop.create_task(run_http_server())  # Start the HTTP server
-bot.run(token)  # Start the Discord bot
+loop.create_task(asyncio.to_thread(run_aiohttp_server))
+
+# Run the bot
+bot.run(token)
