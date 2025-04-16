@@ -24,7 +24,7 @@ async def start(ctx):
     await game_manager.start_game()
 
 # Fetch the token from the environment variable
-token = os.getenv("DISCORD_BOT_TOKEN")
+token = os.getenv("BOT_TOKEN")
 if not token:
     raise ValueError("DISCORD_BOT_TOKEN environment variable not set.")
 
