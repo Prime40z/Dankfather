@@ -1,8 +1,11 @@
 from discord.ext import commands
 import discord
+import logging
 from game.night_actions import NightActions
 from game.roles import ROLES
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
 
 class GameManager:
     def __init__(self, bot):
@@ -41,11 +44,12 @@ class Player:
         return self.user.name
 
 
-# Initialize bot and game manager
+# Initialize bot with only necessary intents
 intents = discord.Intents.default()
-intents.messages = True
-intents.guilds = True
-intents.members = True
+intents.messages = True  # Enable message-related events
+intents.guilds = True  # Enable guild-related events
+intents.presences = False  # Disable presence updates
+intents.typing = False  # Disable typing events
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 game_manager = GameManager(bot)
@@ -53,32 +57,35 @@ game_manager = GameManager(bot)
 
 @bot.event
 async def on_ready():
-    print(f"Logged in as {bot.user}")
+    logging.info(f"Logged in as {bot.user}")
 
 
 @bot.command()
 async def start(ctx):
     """Command to start the game."""
+    logging.info("Start command invoked")
+    if len(game_manager.players) < 2:
+        await ctx.send("You need at least 2 players to start the game!")
+        return
     await game_manager.start_game()
+    await ctx.send("Game started!")
 
 
-# Add the new commands here
 @bot.command()
 async def join(ctx):
     """Command to join the game."""
-    if game_manager.get_alive_players():
-        for player in game_manager.get_alive_players():
-            if player.user == ctx.author:
-                await ctx.send(f"{ctx.author.mention}, you are already in the game.")
-                return
+    logging.info(f"Join command invoked by {ctx.author}")
+    if any(player.user == ctx.author for player in game_manager.players):
+        await ctx.send(f"{ctx.author.mention}, you are already in the game.")
+    else:
+        game_manager.players.append(Player(ctx.author))
+        await ctx.send(f"{ctx.author.mention} has joined the game!")
 
-    new_player = Player(ctx.author)
-    game_manager.players.append(new_player)
-    await ctx.send(f"{ctx.author.mention} has joined the game!")
 
 @bot.command()
 async def leave(ctx):
     """Command to leave the game."""
+    logging.info(f"Leave command invoked by {ctx.author}")
     for player in game_manager.players:
         if player.user == ctx.author:
             game_manager.players.remove(player)
@@ -86,9 +93,11 @@ async def leave(ctx):
             return
     await ctx.send(f"{ctx.author.mention}, you are not in the game.")
 
+
 @bot.command()
 async def kick(ctx, member: discord.Member):
     """Command to kick a player from the game."""
+    logging.info(f"Kick command invoked by {ctx.author} for {member}")
     if not ctx.author.guild_permissions.administrator:
         await ctx.send("Only an administrator can kick players.")
         return
@@ -100,18 +109,22 @@ async def kick(ctx, member: discord.Member):
             return
     await ctx.send(f"{member.mention} is not in the game.")
 
+
 @bot.command()
 async def party(ctx):
     """Command to list all players in the game."""
+    logging.info("Party command invoked")
     if not game_manager.players:
-        await ctx.send("No players have joined the game yet!")
+        await ctx.send("No players have joined yet!")
     else:
-        player_list = ", ".join([player.user.mention for player in game_manager.players])
-        await ctx.send(f"Current players: {player_list}")
+        members = ", ".join([player.user.mention for player in game_manager.players])
+        await ctx.send(f"Current players: {members}")
+
 
 @bot.command()
 async def reset(ctx):
     """Command to reset the game."""
+    logging.info(f"Reset command invoked by {ctx.author}")
     if not ctx.author.guild_permissions.administrator:
         await ctx.send("Only an administrator can reset the game.")
         return
@@ -120,11 +133,19 @@ async def reset(ctx):
     await ctx.send("The game has been reset. All players have been removed.")
 
 
+# Optional: Filter unnecessary events
+@bot.event
+async def on_socket_event_type(event_data):
+    """Filter and log only relevant events."""
+    if event_data["t"] in ["MESSAGE_CREATE", "GUILD_CREATE"]:  # Add required event types here
+        logging.debug(f"Relevant WebSocket Event: {event_data}")
+
+
 # Run the bot
 if __name__ == "__main__":
     import os
 
-    TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+    TOKEN = os.getenv("BOT_TOKEN")
     if not TOKEN:
         raise ValueError("DISCORD_BOT_TOKEN environment variable is not set.")
     bot.run(TOKEN)
