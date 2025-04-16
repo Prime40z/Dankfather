@@ -30,7 +30,7 @@ if not token:
 
 # Minimal HTTP server for health checks
 async def handle_health_check(request):
-    print("Health check received")
+    print("Health check request received")
     return web.Response(text="OK")
 
 async def run_http_server():
@@ -39,10 +39,10 @@ async def run_http_server():
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", 8000)
-    print("Starting HTTP server on port 8000...")
+    print("HTTP server is running on http://0.0.0.0:8000")
     await site.start()
 
 # Run the bot and HTTP server
 loop = asyncio.get_event_loop()
-loop.create_task(run_http_server())
-bot.run(token)
+loop.create_task(run_http_server())  # Start the HTTP server
+bot.run(token)  # Start the Discord bot
