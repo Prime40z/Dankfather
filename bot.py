@@ -2,6 +2,8 @@ import os
 import discord
 from discord.ext import commands
 from game.game_manager import GameManager
+from aiohttp import web
+import asyncio
 
 # Initialize intents for the bot
 intents = discord.Intents.all()
@@ -22,9 +24,23 @@ async def start(ctx):
     await game_manager.start_game()
 
 # Fetch the token from the environment variable
-token = os.getenv("BOT_TOKEN")
+token = os.getenv("DISCORD_BOT_TOKEN")
 if not token:
     raise ValueError("DISCORD_BOT_TOKEN environment variable not set.")
 
-# Run the bot
+# Minimal HTTP server for health checks
+async def handle_health_check(request):
+    return web.Response(text="OK")
+
+async def run_http_server():
+    app = web.Application()
+    app.router.add_get("/", handle_health_check)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8000)
+    await site.start()
+
+# Run the bot and HTTP server
+loop = asyncio.get_event_loop()
+loop.create_task(run_http_server())
 bot.run(token)
