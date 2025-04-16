@@ -1,93 +1,56 @@
 import discord
 from discord.ext import commands
+from discord.ui import Select, View
 
 
 class NightActions(commands.Cog):
-    def __init__(self, bot, game):
+    def __init__(self, bot, game_manager):
         self.bot = bot
-        self.game = game  # Reference to the current game
-        self.actions = []  # Store submitted actions for the night
+        self.game_manager = game_manager
 
     async def start_night_phase(self):
-        """Start the night phase and send drop-down menus to all players with abilities."""
-        # Iterate over players with abilities
-        for player in self.game.players:
-            if player.role and player.role.has_night_action:
-                await self.send_action_menu(player)
+        """Start the night phase and prompt roles with night actions."""
+        for player in self.game_manager.players:
+            if player.role.has_night_action:
+                await self.prompt_night_action(player)
 
-    async def send_action_menu(self, player):
-        """Send a private drop-down menu to the player for their night action."""
-        # Build the list of valid targets dynamically based on the player's role
-        target_options = self.get_valid_targets(player)
+    async def prompt_night_action(self, player):
+        """Send a dropdown menu to the player for selecting a target."""
+        valid_targets = player.role.valid_targets(self.game_manager.get_alive_players())
 
-        # If no valid targets, notify the player
-        if not target_options:
-            await player.user.send(
-                f"As a {player.role.name}, you have no valid targets for tonight."
-            )
+        # Create dropdown options
+        options = [
+            discord.SelectOption(label=target.user.name, value=str(target.user.id))
+            for target in valid_targets
+        ]
+
+        # Handle cases where there are no valid targets
+        if not options:
+            await player.user.send("You have no valid targets for your action tonight.")
             return
 
-        # Define the select menu
-        class TargetSelect(discord.ui.Select):
-            def __init__(self):
-                super().__init__(
-                    placeholder="Choose your target...",
-                    options=target_options,
-                    custom_id=f"{player.role.name.lower()}_action"
-                )
+        # Create and send the dropdown
+        select = Select(placeholder="Select a target", options=options)
+        view = View()
+        view.add_item(select)
 
-            async def callback(self, interaction: discord.Interaction):
-                # Handle the player's selection
-                target_id = int(self.values[0])
-                target_player = next(p for p in self.game.players if p.user.id == target_id)
-
-                # Log the action
-                self.view.cog.actions.append({
-                    "role": player.role.name,
-                    "player": player.user,
-                    "target": target_player.user
-                })
+        async def callback(interaction: discord.Interaction):
+            selected_target_id = select.values[0]
+            selected_target = next(
+                (p for p in self.game_manager.players if str(p.user.id) == selected_target_id),
+                None
+            )
+            if selected_target:
+                player.role.previous_target = selected_target
                 await interaction.response.send_message(
-                    f"You have chosen to target {target_player.user.name}.", ephemeral=True
+                    f"You have selected {selected_target.user.name} as your target."
                 )
+            else:
+                await interaction.response.send_message("Invalid target selected.")
 
-        # Define the view that contains the select menu
-        class TargetSelectView(discord.ui.View):
-            def __init__(self, cog):
-                super().__init__()
-                self.cog = cog  # Pass the cog for access to actions
-                self.add_item(TargetSelect())
+        select.callback = callback
+        await player.user.send("Choose your target for tonight:", view=view)
 
-        # Send the select menu as an ephemeral message in the game channel
-        await player.user.send(
-            f"As a {player.role.name}, choose your target for tonight:",
-            view=TargetSelectView(self)
-        )
 
-    def get_valid_targets(self, player):
-        """Get a list of valid targets based on the player's role and game rules."""
-        valid_targets = []
-
-        # Example rule: Mafia can't kill other Mafia members
-        if player.role.name == "Mafia":
-            valid_targets = [
-                discord.SelectOption(label=p.user.name, value=str(p.user.id))
-                for p in self.game.players if p.alive and p.user != player.user and p.role.name != "Mafia"
-            ]
-
-        # Example rule: Doctor can't heal the same person twice in a row
-        elif player.role.name == "Doctor":
-            previous_target = player.role.previous_target
-            valid_targets = [
-                discord.SelectOption(label=p.user.name, value=str(p.user.id))
-                for p in self.game.players if p.alive and p.user != previous_target
-            ]
-
-        # Default for other roles: All alive players except the player themselves
-        else:
-            valid_targets = [
-                discord.SelectOption(label=p.user.name, value=str(p.user.id))
-                for p in self.game.players if p.alive and p.user != player.user
-            ]
-
-        return valid_targets
+async def setup(bot):
+    bot.add_cog(NightActions(bot))
