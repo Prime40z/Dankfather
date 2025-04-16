@@ -24,12 +24,13 @@ async def start(ctx):
     await game_manager.start_game()
 
 # Fetch the token from the environment variable
-token = os.getenv("BOT_TOKEN")
+token = os.getenv("DISCORD_BOT_TOKEN")
 if not token:
     raise ValueError("DISCORD_BOT_TOKEN environment variable not set.")
 
 # Minimal HTTP server for health checks
 async def handle_health_check(request):
+    print("Health check received")
     return web.Response(text="OK")
 
 async def run_http_server():
@@ -38,6 +39,7 @@ async def run_http_server():
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", 8000)
+    print("Starting HTTP server on port 8000...")
     await site.start()
 
 # Run the bot and HTTP server
