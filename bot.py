@@ -1,3 +1,4 @@
+import os
 import discord
 from discord.ext import commands
 from game.game_manager import GameManager
@@ -20,5 +21,10 @@ async def start(ctx):
     """Command to start the game."""
     await game_manager.start_game()
 
-# Run the bot (replace 'YOUR_BOT_TOKEN' with your actual bot token)
-bot.run("BOT_TOKEN")
+# Fetch the token from the environment variable
+token = os.getenv("BOT_TOKEN")
+if not token:
+    raise ValueError("DISCORD_BOT_TOKEN environment variable not set.")
+
+# Run the bot
+bot.run(token)
