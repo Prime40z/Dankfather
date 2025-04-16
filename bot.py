@@ -34,13 +34,17 @@ async def handle_health_check(request):
     return web.Response(text="OK")
 
 async def run_http_server():
-    app = web.Application()
-    app.router.add_get("/", handle_health_check)
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8000)
-    print("HTTP server is running on http://0.0.0.0:8000")
-    await site.start()
+    try:
+        app = web.Application()
+        app.router.add_get("/", handle_health_check)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "0.0.0.0", 8000)
+        print("HTTP server is starting on http://0.0.0.0:8000...")
+        await site.start()
+        print("HTTP server is running on http://0.0.0.0:8000")
+    except Exception as e:
+        print(f"Failed to start HTTP server: {e}")
 
 # Run the bot and HTTP server
 loop = asyncio.get_event_loop()
