@@ -1,4 +1,5 @@
 from discord.ext import commands
+import discord
 from game.night_actions import NightActions
 from game.roles import ROLES
 
@@ -42,7 +43,12 @@ class Player:
 
 
 # Initialize bot and game manager
-bot = commands.Bot(command_prefix="!")
+intents = discord.Intents.default()  # Use `discord.Intents.all()` if your bot needs all intents
+intents.messages = True  # Enable specific intents (e.g., message handling)
+intents.guilds = True
+intents.members = True  # Enable member-related events (important for some bots)
+
+bot = commands.Bot(command_prefix="!", intents=intents)
 game_manager = GameManager(bot)
 
 
