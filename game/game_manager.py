@@ -31,7 +31,6 @@ class GameManager:
         return [player for player in self.players if player.alive]
 
 
-# Example player class
 class Player:
     def __init__(self, user):
         self.user = user
@@ -43,10 +42,10 @@ class Player:
 
 
 # Initialize bot and game manager
-intents = discord.Intents.default()  # Use `discord.Intents.all()` if your bot needs all intents
-intents.messages = True  # Enable specific intents (e.g., message handling)
+intents = discord.Intents.default()
+intents.messages = True
 intents.guilds = True
-intents.members = True  # Enable member-related events (important for some bots)
+intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 game_manager = GameManager(bot)
@@ -61,3 +60,71 @@ async def on_ready():
 async def start(ctx):
     """Command to start the game."""
     await game_manager.start_game()
+
+
+# Add the new commands here
+@bot.command()
+async def join(ctx):
+    """Command to join the game."""
+    if game_manager.get_alive_players():
+        for player in game_manager.get_alive_players():
+            if player.user == ctx.author:
+                await ctx.send(f"{ctx.author.mention}, you are already in the game.")
+                return
+
+    new_player = Player(ctx.author)
+    game_manager.players.append(new_player)
+    await ctx.send(f"{ctx.author.mention} has joined the game!")
+
+@bot.command()
+async def leave(ctx):
+    """Command to leave the game."""
+    for player in game_manager.players:
+        if player.user == ctx.author:
+            game_manager.players.remove(player)
+            await ctx.send(f"{ctx.author.mention} has left the game!")
+            return
+    await ctx.send(f"{ctx.author.mention}, you are not in the game.")
+
+@bot.command()
+async def kick(ctx, member: discord.Member):
+    """Command to kick a player from the game."""
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.send("Only an administrator can kick players.")
+        return
+
+    for player in game_manager.players:
+        if player.user == member:
+            game_manager.players.remove(player)
+            await ctx.send(f"{member.mention} has been kicked from the game!")
+            return
+    await ctx.send(f"{member.mention} is not in the game.")
+
+@bot.command()
+async def party(ctx):
+    """Command to list all players in the game."""
+    if not game_manager.players:
+        await ctx.send("No players have joined the game yet!")
+    else:
+        player_list = ", ".join([player.user.mention for player in game_manager.players])
+        await ctx.send(f"Current players: {player_list}")
+
+@bot.command()
+async def reset(ctx):
+    """Command to reset the game."""
+    if not ctx.author.guild_permissions.administrator:
+        await ctx.send("Only an administrator can reset the game.")
+        return
+
+    game_manager.players = []
+    await ctx.send("The game has been reset. All players have been removed.")
+
+
+# Run the bot
+if __name__ == "__main__":
+    import os
+
+    TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+    if not TOKEN:
+        raise ValueError("DISCORD_BOT_TOKEN environment variable is not set.")
+    bot.run(TOKEN)
