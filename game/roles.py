@@ -1,227 +1,220 @@
 class Role:
-    def __init__(self, name, alignment, description):
+    def __init__(self, name, has_night_action=False):
         self.name = name
-        self.alignment = alignment  # Town, Mafia, Neutral
-        self.description = description
+        self.has_night_action = has_night_action
+        self.previous_target = None  # Used for roles like Doctor
 
-    def perform_action(self, game, actor, target):
-        pass
+    def __str__(self):
+        return self.name
 
 
-# Town Roles
-class Villager(Role):
+# Example roles with diverse abilities
+class Mafia(Role):
     def __init__(self):
-        super().__init__("Villager", "Town", "A simple townsperson without any special abilities.")
+        super().__init__(name="Mafia", has_night_action=True)
 
-
-class Sheriff(Role):
-    def __init__(self):
-        super().__init__("Sheriff", "Town", "Investigate one player each night to determine if they are suspicious.")
-
-    def perform_action(self, game, actor, target):
-        if target.role.alignment == "Mafia":
-            return f"{target.name} is suspicious!"
-        return f"{target.name} is not suspicious."
+    def valid_targets(self, players):
+        """Mafia can't target other Mafia members."""
+        return [player for player in players if player.role.name != "Mafia" and player.alive]
 
 
 class Doctor(Role):
     def __init__(self):
-        super().__init__("Doctor", "Town", "Heal one player each night, preventing them from dying.")
+        super().__init__(name="Doctor", has_night_action=True)
 
-    def perform_action(self, game, actor, target):
-        game.save_player(target)
+    def valid_targets(self, players):
+        """Doctor can target any living player except the one they healed last."""
+        return [player for player in players if player.alive and player != self.previous_target]
 
 
-class Mayor(Role):
+class Villager(Role):
     def __init__(self):
-        super().__init__("Mayor", "Town", "Your vote counts as 3 during the day phase.")
+        super().__init__(name="Villager", has_night_action=False)
 
 
-class Jailor(Role):
+class Detective(Role):
     def __init__(self):
-        super().__init__("Jailor", "Town", "Jail one player each night and execute them if necessary.")
+        super().__init__(name="Detective", has_night_action=True)
 
-    def perform_action(self, game, actor, target):
-        game.jail_player(target)
-
-
-class Bodyguard(Role):
-    def __init__(self):
-        super().__init__("Bodyguard", "Town", "Protect one player each night, dying in their place if they are attacked.")
-
-    def perform_action(self, game, actor, target):
-        game.protect_player(target, actor)
-
-
-class Investigator(Role):
-    def __init__(self):
-        super().__init__("Investigator", "Town", "Investigate one player each night to learn a clue about their role.")
-
-    def perform_action(self, game, actor, target):
-        return f"{target.name} shows signs of being {target.role.name}."
-
-
-class Veteran(Role):
-    def __init__(self):
-        super().__init__("Veteran", "Town", "Go on alert to kill anyone who visits you during the night.")
-
-
-class Vigilante(Role):
-    def __init__(self):
-        super().__init__("Vigilante", "Town", "Kill one player at night. Be careful not to kill a fellow town member!")
-
-
-class Escort(Role):
-    def __init__(self):
-        super().__init__("Escort", "Town", "Distract one player each night, preventing them from acting.")
-
-    def perform_action(self, game, actor, target):
-        game.block_player(target)
-
-
-class Medium(Role):
-    def __init__(self):
-        super().__init__("Medium", "Town", "Communicate with dead players during the night.")
-
-
-class Lookout(Role):
-    def __init__(self):
-        super().__init__("Lookout", "Town", "Watch one player's house to see who visits them at night.")
-
-    def perform_action(self, game, actor, target):
-        visitors = game.get_visitors(target)
-        return f"{target.name} was visited by {', '.join([v.name for v in visitors])}."
-
-
-# Mafia Roles
-class Godfather(Role):
-    def __init__(self):
-        super().__init__("Godfather", "Mafia", "Order a kill each night and appear innocent to investigators.")
-
-    def perform_action(self, game, actor, target):
-        game.kill_player(target)
-
-
-class Mafioso(Role):
-    def __init__(self):
-        super().__init__("Mafioso", "Mafia", "Carry out the Godfather's orders to kill.")
-
-    def perform_action(self, game, actor, target):
-        game.kill_player(target)
-
-
-class Consigliere(Role):
-    def __init__(self):
-        super().__init__("Consigliere", "Mafia", "Investigate one player each night to learn their exact role.")
-
-    def perform_action(self, game, actor, target):
-        return f"{target.name} is the {target.role.name}."
-
-
-class Consort(Role):
-    def __init__(self):
-        super().__init__("Consort", "Mafia", "Distract one player each night, preventing them from acting.")
-
-    def perform_action(self, game, actor, target):
-        game.block_player(target)
-
-
-class Framer(Role):
-    def __init__(self):
-        super().__init__("Framer", "Mafia", "Make one player appear suspicious to investigators.")
-
-    def perform_action(self, game, actor, target):
-        game.frame_player(target)
-
-
-class Janitor(Role):
-    def __init__(self):
-        super().__init__("Janitor", "Mafia", "Clean a player's role upon their death to hide it from others.")
-
-    def perform_action(self, game, actor, target):
-        game.clean_player(target)
-
-
-class Blackmailer(Role):
-    def __init__(self):
-        super().__init__("Blackmailer", "Mafia", "Silence one player during the day, preventing them from speaking.")
-
-    def perform_action(self, game, actor, target):
-        game.silence_player(target)
-
-
-# Neutral Roles
-class SerialKiller(Role):
-    def __init__(self):
-        super().__init__("Serial Killer", "Neutral", "Kill one player each night. Survive to the end.")
-
-    def perform_action(self, game, actor, target):
-        game.kill_player(target)
-
-
-class Survivor(Role):
-    def __init__(self):
-        super().__init__("Survivor", "Neutral", "Survive until the end of the game.")
-
-
-class Executioner(Role):
-    def __init__(self):
-        super().__init__("Executioner", "Neutral", "Get your target lynched during the day.")
+    def valid_targets(self, players):
+        """Detective can investigate any living player."""
+        return [player for player in players if player.alive]
 
 
 class Jester(Role):
     def __init__(self):
-        super().__init__("Jester", "Neutral", "Get yourself lynched during the day to win.")
+        super().__init__(name="Jester", has_night_action=False)
 
 
-class Arsonist(Role):
+class SerialKiller(Role):
     def __init__(self):
-        super().__init__("Arsonist", "Neutral", "Douse players in gasoline and ignite them at night.")
+        super().__init__(name="Serial Killer", has_night_action=True)
 
-    def perform_action(self, game, actor, target):
-        game.douse_player(target)
+    def valid_targets(self, players):
+        """Serial Killer can target any living player."""
+        return [player for player in players if player.alive]
+
+
+class Bodyguard(Role):
+    def __init__(self):
+        super().__init__(name="Bodyguard", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Bodyguard can protect any living player."""
+        return [player for player in players if player.alive]
+
+
+class Spy(Role):
+    def __init__(self):
+        super().__init__(name="Spy", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Spy can eavesdrop on any living player."""
+        return [player for player in players if player.alive]
 
 
 class Witch(Role):
     def __init__(self):
-        super().__init__("Witch", "Neutral", "Control one player each night and force them to act on another.")
+        super().__init__(name="Witch", has_night_action=True)
 
-    def perform_action(self, game, actor, target, secondary_target):
-        game.control_player(target, secondary_target)
+    def valid_targets(self, players):
+        """Witch can control any living player."""
+        return [player for player in players if player.alive]
 
 
-class RoleFactory:
-    ROLES = {
-        "Villager": Villager,
-        "Sheriff": Sheriff,
-        "Doctor": Doctor,
-        "Mayor": Mayor,
-        "Jailor": Jailor,
-        "Bodyguard": Bodyguard,
-        "Investigator": Investigator,
-        "Veteran": Veteran,
-        "Vigilante": Vigilante,
-        "Escort": Escort,
-        "Medium": Medium,
-        "Lookout": Lookout,
-        "Godfather": Godfather,
-        "Mafioso": Mafioso,
-        "Consigliere": Consigliere,
-        "Consort": Consort,
-        "Framer": Framer,
-        "Janitor": Janitor,
-        "Blackmailer": Blackmailer,
-        "Serial Killer": SerialKiller,
-        "Survivor": Survivor,
-        "Executioner": Executioner,
-        "Jester": Jester,
-        "Arsonist": Arsonist,
-        "Witch": Witch,
-    }
+class Arsonist(Role):
+    def __init__(self):
+        super().__init__(name="Arsonist", has_night_action=True)
 
-    @staticmethod
-    def create_role(name):
-        role_class = RoleFactory.ROLES.get(name)
-        if role_class:
-            return role_class()
-        return None
+    def valid_targets(self, players):
+        """Arsonist can douse any living player."""
+        return [player for player in players if player.alive]
+
+
+class Mayor(Role):
+    def __init__(self):
+        super().__init__(name="Mayor", has_night_action=False)
+
+
+class Veteran(Role):
+    def __init__(self):
+        super().__init__(name="Veteran", has_night_action=True)
+
+
+class Escort(Role):
+    def __init__(self):
+        super().__init__(name="Escort", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Escort can block any living player."""
+        return [player for player in players if player.alive]
+
+
+class Consort(Role):
+    def __init__(self):
+        super().__init__(name="Consort", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Consort can block any living player."""
+        return [player for player in players if player.alive]
+
+
+class Framer(Role):
+    def __init__(self):
+        super().__init__(name="Framer", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Framer can frame any living player."""
+        return [player for player in players if player.alive]
+
+
+class Forger(Role):
+    def __init__(self):
+        super().__init__(name="Forger", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Forger can forge evidence against any living player."""
+        return [player for player in players if player.alive]
+
+
+class Executioner(Role):
+    def __init__(self):
+        super().__init__(name="Executioner", has_night_action=False)
+
+
+class Survivor(Role):
+    def __init__(self):
+        super().__init__(name="Survivor", has_night_action=False)
+
+
+class Amnesiac(Role):
+    def __init__(self):
+        super().__init__(name="Amnesiac", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Amnesiac can remember the role of any dead player."""
+        return [player for player in players if not player.alive]
+
+
+class Blackmailer(Role):
+    def __init__(self):
+        super().__init__(name="Blackmailer", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Blackmailer can silence any living player."""
+        return [player for player in players if player.alive]
+
+
+class Disguiser(Role):
+    def __init__(self):
+        super().__init__(name="Disguiser", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Disguiser can disguise as any living player."""
+        return [player for player in players if player.alive]
+
+
+class Godfather(Role):
+    def __init__(self):
+        super().__init__(name="Godfather", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Godfather can command Mafia to target any living player."""
+        return [player for player in players if player.alive]
+
+
+class Tracker(Role):
+    def __init__(self):
+        super().__init__(name="Tracker", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Tracker can follow any living player."""
+        return [player for player in players if player.alive]
+
+
+class Lookout(Role):
+    def __init__(self):
+        super().__init__(name="Lookout", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Lookout can watch over any living player."""
+        return [player for player in players if player.alive]
+
+
+class Vigilante(Role):
+    def __init__(self):
+        super().__init__(name="Vigilante", has_night_action=True)
+
+    def valid_targets(self, players):
+        """Vigilante can shoot any living player."""
+        return [player for player in players if player.alive]
+
+
+# Add more roles as necessary
+ROLES = [
+    Mafia(), Doctor(), Villager(), Detective(), Jester(), SerialKiller(),
+    Bodyguard(), Spy(), Witch(), Arsonist(), Mayor(), Veteran(),
+    Escort(), Consort(), Framer(), Forger(), Executioner(), Survivor(),
+    Amnesiac(), Blackmailer(), Disguiser(), Godfather(), Tracker(),
+    Lookout(), Vigilante()
+]
