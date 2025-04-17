@@ -2,7 +2,12 @@ from discord.ext import commands
 import discord
 import logging
 from game.night_actions import NightActions  # Night phase logic
-from game.roles import ROLES  # Role definitions
+from game.roles import (
+    ROLES, Mafia, Doctor, Detective, Villager, Jester, SerialKiller,
+    Bodyguard, Spy, Witch, Arsonist, Mayor, Veteran, Escort, Consort,
+    Framer, Forger, Executioner, Survivor, Amnesiac, Blackmailer,
+    Disguiser, Godfather, Tracker, Lookout, Vigilante
+)
 from game.phases import NightPhase, DayPhase  # Phase logic
 from game.win_conditions import WinConditions  # Win condition checks
 
@@ -39,17 +44,28 @@ class GameManager:
     def assign_roles(self):
         """Assign roles to players."""
         from random import shuffle
-        if not self.players:
-            logging.warning("No players available to assign roles!")
+
+        # Define roles that must always appear in the game
+        required_roles = [Godfather(), Doctor(), Detective()]  # Example of required roles
+        if len(self.players) < len(required_roles):
+            logging.warning("Not enough players to assign all required roles!")
             return
 
-        if not ROLES:
-            logging.warning("No roles defined in ROLES!")
-            return
+        # Shuffle the remaining roles
+        remaining_roles = ROLES.copy()
+        shuffle(remaining_roles)
 
-        shuffle(ROLES)
-        logging.info(f"Shuffled roles: {ROLES}")
-        for player, role in zip(self.players, ROLES):
+        # Remove required roles from the remaining pool to avoid duplication
+        for required_role in required_roles:
+            remaining_roles = [role for role in remaining_roles if type(role) != type(required_role)]
+
+        # Ensure required roles are assigned first
+        for player, role in zip(self.players, required_roles):
+            player.role = role
+            logging.info(f"Assigned required role {role} to player {player.user.name}")
+
+        # Assign the rest of the roles randomly
+        for player, role in zip(self.players[len(required_roles):], remaining_roles):
             player.role = role
             logging.info(f"Assigned role {role} to player {player.user.name}")
 
