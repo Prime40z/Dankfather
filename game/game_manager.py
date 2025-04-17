@@ -47,7 +47,7 @@ class GameManager:
         from random import shuffle
 
         # Define roles that must always appear in the game
-        required_roles = [Mafia(), Doctor(), Detective()]  # Example of required roles
+        required_roles = [Godfather(), Doctor(), Detective()]  # Example of required roles
         if len(self.players) < len(required_roles):
             logging.warning("Not enough players to assign all required roles!")
             return
@@ -140,6 +140,27 @@ class GameManager:
             # Reset the game on win
             self.players = []
             logging.info("Game has ended. Players have been reset.")
+        else:
+            # Check if the Godfather is dead and promote a new one if needed
+            await self.check_and_promote_godfather(channel)
+
+    async def check_and_promote_godfather(self, channel):
+        """Check if the Godfather is dead and promote a new one from Mafia-aligned roles."""
+        godfather_dead = not any(player.alive and isinstance(player.role, Godfather) for player in self.players)
+        if godfather_dead:
+            # Find all alive Mafia-aligned players
+            mafia_roles = (Mafia, Blackmailer, Consort, Framer)  # Add other Mafia roles if necessary
+            alive_mafia_players = [player for player in self.players if player.alive and isinstance(player.role, mafia_roles)]
+
+            if alive_mafia_players:
+                # Promote the first Mafia-aligned player to Godfather
+                new_godfather = alive_mafia_players[0]
+                new_godfather.role = Godfather()  # Assign the new Godfather role
+                await new_godfather.user.send("You have been promoted to the Godfather!")
+                logging.info(f"{new_godfather.user.name} has been promoted to the new Godfather.")
+                await channel.send(f"{new_godfather.user.mention} has been promoted to the new Godfather!")
+            else:
+                logging.info("No Mafia-aligned players remain to promote to Godfather.")
 
     def get_alive_players(self):
         """Return a list of all alive players."""
