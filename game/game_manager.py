@@ -22,6 +22,15 @@ class GameManager:
         try:
             logging.info("Game is starting...")
             self.assign_roles()
+
+            # Notify players of their assigned roles
+            for player in self.players:
+                try:
+                    await player.user.send(f"You have been assigned the role: {player.role}")
+                    logging.info(f"Notified {player.user.name} of their role: {player.role}")
+                except Exception as e:
+                    logging.error(f"Could not notify {player.user.name} of their role. Error: {e}")
+
             logging.info("Roles have been assigned.")
             await self.start_night_phase(channel)
         except Exception as e:
