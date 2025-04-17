@@ -1,6 +1,7 @@
 from discord.ext import commands
 import discord
 import logging
+import asyncio  # Add asyncio for timers
 from game.night_actions import NightActions  # Night phase logic
 from game.roles import (
     ROLES, Mafia, Doctor, Detective, Villager, Jester, SerialKiller,
@@ -46,7 +47,7 @@ class GameManager:
         from random import shuffle
 
         # Define roles that must always appear in the game
-        required_roles = [Godfather(), Doctor(), Detective()]  # Example of required roles
+        required_roles = [Mafia(), Doctor(), Detective()]  # Example of required roles
         if len(self.players) < len(required_roles):
             logging.warning("Not enough players to assign all required roles!")
             return
@@ -70,26 +71,66 @@ class GameManager:
             logging.info(f"Assigned role {role} to player {player.user.name}")
 
     async def start_night_phase(self, channel):
-        """Start the night phase."""
+        """Start the night phase with a timer."""
         try:
             logging.info("Starting night phase...")
             self.phase = NightPhase(channel, self.players)
             await self.phase.start()
+
+            # Wait for the night phase duration (45 seconds)
+            night_duration = 45
+            logging.info(f"Night phase will last {night_duration} seconds.")
+            await asyncio.sleep(night_duration)
+
             await self.night_actions.start_night_phase()
             await self.check_win_conditions(channel)
+
+            # Automatically transition to the day phase
             await self.start_day_phase(channel)
         except Exception as e:
             logging.error(f"Error during night phase: {e}")
 
     async def start_day_phase(self, channel):
-        """Start the day phase."""
+        """Start the day phase with a timer."""
         try:
             logging.info("Starting day phase...")
             self.phase = DayPhase(channel, self.players)
             await self.phase.start()
+
+            # Day phase duration is 90 seconds
+            day_duration = 90
+            voting_menu_start = 25  # Voting menu appears in the last 25 seconds
+            logging.info(f"Day phase will last {day_duration} seconds.")
+
+            # Wait until voting menu appears
+            await asyncio.sleep(day_duration - voting_menu_start)
+
+            # Show voting menu
+            logging.info("Opening voting menu.")
+            await self.show_voting_menu(channel)
+
+            # Wait for the remaining time
+            await asyncio.sleep(voting_menu_start)
+
+            # Tally votes and check win conditions
+            await self.phase.tally_votes()
             await self.check_win_conditions(channel)
+
+            # Automatically transition to the night phase
+            await self.start_night_phase(channel)
         except Exception as e:
             logging.error(f"Error during day phase: {e}")
+
+    async def show_voting_menu(self, channel):
+        """Display a voting menu for players to place votes."""
+        try:
+            for player in self.players:
+                if player.alive:
+                    await channel.send(
+                        f"{player.user.mention}, cast your vote using the `!vote @player` command!"
+                    )
+        except Exception as e:
+            logging.error(f"Error displaying voting menu: {e}")
 
     async def check_win_conditions(self, channel):
         """Check and announce if any team has won."""
