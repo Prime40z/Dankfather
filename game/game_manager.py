@@ -1,9 +1,10 @@
 from discord.ext import commands
 import discord
 import logging
-from game.night_actions import NightActions
-from game.roles import ROLES
-import json
+from game.night_actions import NightActions  # Night phase logic
+from game.roles import ROLES  # Role definitions
+from game.phases import NightPhase, DayPhase  # Phase logic
+from game.win_conditions import WinConditions  # Win condition checks
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -13,22 +14,66 @@ class GameManager:
         self.bot = bot
         self.players = []  # List of Player objects
         self.night_actions = NightActions(bot, self)
+        self.phase = None  # Represents the current phase
+        self.win_conditions = WinConditions(self.players)
 
-    async def start_game(self):
+    async def start_game(self, channel):
         """Initialize and start the game."""
-        self.assign_roles()
-        await self.start_night_phase()
+        try:
+            logging.info("Game is starting...")
+            self.assign_roles()
+            logging.info("Roles have been assigned.")
+            await self.start_night_phase(channel)
+        except Exception as e:
+            logging.error(f"Error during game start: {e}")
 
     def assign_roles(self):
         """Assign roles to players."""
         from random import shuffle
+        if not self.players:
+            logging.warning("No players available to assign roles!")
+            return
+
+        if not ROLES:
+            logging.warning("No roles defined in ROLES!")
+            return
+
         shuffle(ROLES)
+        logging.info(f"Shuffled roles: {ROLES}")
         for player, role in zip(self.players, ROLES):
             player.role = role
+            logging.info(f"Assigned role {role} to player {player.user.name}")
 
-    async def start_night_phase(self):
+    async def start_night_phase(self, channel):
         """Start the night phase."""
-        await self.night_actions.start_night_phase()
+        try:
+            logging.info("Starting night phase...")
+            self.phase = NightPhase(channel, self.players)
+            await self.phase.start()
+            await self.night_actions.start_night_phase()
+            await self.check_win_conditions(channel)
+            await self.start_day_phase(channel)
+        except Exception as e:
+            logging.error(f"Error during night phase: {e}")
+
+    async def start_day_phase(self, channel):
+        """Start the day phase."""
+        try:
+            logging.info("Starting day phase...")
+            self.phase = DayPhase(channel, self.players)
+            await self.phase.start()
+            await self.check_win_conditions(channel)
+        except Exception as e:
+            logging.error(f"Error during day phase: {e}")
+
+    async def check_win_conditions(self, channel):
+        """Check and announce if any team has won."""
+        result = self.win_conditions.check_win()
+        if result:
+            await channel.send(result)
+            # Reset the game on win
+            self.players = []
+            logging.info("Game has ended. Players have been reset.")
 
     def get_alive_players(self):
         """Return a list of all alive players."""
@@ -40,6 +85,7 @@ class Player:
         self.user = user
         self.role = None
         self.alive = True
+        self.previous_target = None
 
     def __str__(self):
         return self.user.name
@@ -69,7 +115,7 @@ async def start(ctx):
     if len(game_manager.players) < 2:
         await ctx.send("You need at least 2 players to start the game!")
         return
-    await game_manager.start_game()
+    await game_manager.start_game(ctx.channel)
     await ctx.send("Game started!")
 
 
@@ -133,21 +179,6 @@ async def reset(ctx):
 
     game_manager.players = []
     await ctx.send("The game has been reset. All players have been removed.")
-
-
-@bot.event
-async def on_socket_event_type(event_data):
-    """Filter and log only relevant events."""
-    try:
-        # Parse event_data if it's a string
-        if isinstance(event_data, str):
-            event_data = json.loads(event_data)
-
-        # Process the event if it's now a dictionary
-        if "t" in event_data and event_data["t"] in ["MESSAGE_CREATE", "GUILD_CREATE"]:
-            logging.debug(f"Relevant WebSocket Event: {event_data}")
-    except Exception as e:
-        logging.error(f"Error processing socket event: {e}")
 
 
 # Run the bot
