@@ -15,16 +15,24 @@ from game.win_conditions import WinConditions  # Win condition checks
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 
+# Constants
+MAX_PLAYERS = 20  # Maximum number of players per game
+
 class GameManager:
     def __init__(self, bot):
         self.bot = bot
         self.players = []  # List of Player objects
+        self.host = None  # The host player (first player to join)
         self.night_actions = NightActions(bot, self)
         self.phase = None  # Represents the current phase
         self.win_conditions = WinConditions(self.players)
 
-    async def start_game(self, channel):
+    async def start_game(self, channel, author):
         """Initialize and start the game."""
+        if self.host != author:
+            await channel.send("Only the host can start the game.")
+            return
+
         try:
             logging.info("Game is starting...")
             self.assign_roles()
@@ -139,6 +147,7 @@ class GameManager:
             await channel.send(result)
             # Reset the game on win
             self.players = []
+            self.host = None
             logging.info("Game has ended. Players have been reset.")
         else:
             # Check if the Godfather is dead and promote a new one if needed
@@ -198,23 +207,28 @@ async def on_ready():
 @bot.command()
 async def start(ctx):
     """Command to start the game."""
-    logging.info("Start command invoked")
-    if len(game_manager.players) < 2:
-        await ctx.send("You need at least 2 players to start the game!")
-        return
-    await game_manager.start_game(ctx.channel)
-    await ctx.send("Game started!")
+    await game_manager.start_game(ctx.channel, ctx.author)
 
 
 @bot.command()
 async def join(ctx):
     """Command to join the game."""
     logging.info(f"Join command invoked by {ctx.author}")
+
+    if len(game_manager.players) >= MAX_PLAYERS:
+        await ctx.send("The game is full. A maximum of 20 players are allowed.")
+        return
+
     if any(player.user == ctx.author for player in game_manager.players):
         await ctx.send(f"{ctx.author.mention}, you are already in the game.")
     else:
-        game_manager.players.append(Player(ctx.author))
-        await ctx.send(f"{ctx.author.mention} has joined the game!")
+        player = Player(ctx.author)
+        game_manager.players.append(player)
+        if not game_manager.host:
+            game_manager.host = ctx.author  # Set the first player as the host
+            await ctx.send(f"{ctx.author.mention} has joined the game and is now the host!")
+        else:
+            await ctx.send(f"{ctx.author.mention} has joined the game!")
 
 
 @bot.command()
@@ -224,7 +238,11 @@ async def leave(ctx):
     for player in game_manager.players:
         if player.user == ctx.author:
             game_manager.players.remove(player)
-            await ctx.send(f"{ctx.author.mention} has left the game!")
+            if game_manager.host == ctx.author:
+                game_manager.host = game_manager.players[0].user if game_manager.players else None
+                await ctx.send(f"{ctx.author.mention} has left the game. The new host is {game_manager.host.mention}!")
+            else:
+                await ctx.send(f"{ctx.author.mention} has left the game.")
             return
     await ctx.send(f"{ctx.author.mention}, you are not in the game.")
 
@@ -233,8 +251,9 @@ async def leave(ctx):
 async def kick(ctx, member: discord.Member):
     """Command to kick a player from the game."""
     logging.info(f"Kick command invoked by {ctx.author} for {member}")
-    if not ctx.author.guild_permissions.administrator:
-        await ctx.send("Only an administrator can kick players.")
+
+    if ctx.author != game_manager.host:
+        await ctx.send("Only the host can kick players.")
         return
 
     for player in game_manager.players:
@@ -253,18 +272,21 @@ async def party(ctx):
         await ctx.send("No players have joined yet!")
     else:
         members = ", ".join([player.user.mention for player in game_manager.players])
-        await ctx.send(f"Current players: {members}")
+        host = f"The host is {game_manager.host.mention}." if game_manager.host else "There is no host."
+        await ctx.send(f"Current players: {members}\n{host}")
 
 
 @bot.command()
 async def reset(ctx):
     """Command to reset the game."""
     logging.info(f"Reset command invoked by {ctx.author}")
-    if not ctx.author.guild_permissions.administrator:
-        await ctx.send("Only an administrator can reset the game.")
+
+    if ctx.author != game_manager.host:
+        await ctx.send("Only the host can reset the game.")
         return
 
     game_manager.players = []
+    game_manager.host = None
     await ctx.send("The game has been reset. All players have been removed.")
 
 
