@@ -12,8 +12,11 @@ discord_logger.setLevel(logging.WARNING)  # Suppress logs below WARNING from dis
 
 @bot.event
 async def on_ready():
-    logging.info(f"Logged in as {bot.user}")
-    logging.info(f"Registered Commands: {list(bot.commands.keys())}")  # Log registered commands
+    try:
+        logging.info(f"Logged in as {bot.user}")
+        logging.info(f"Registered Commands: {[command.name for command in bot.commands]}")  # Log registered commands
+    except Exception as e:
+        logging.error(f"Error in on_ready: {e}")
 
 async def main():
     # Start health check server first
