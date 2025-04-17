@@ -2,7 +2,8 @@ from bot_instance import bot  # Import the shared bot instance
 import logging
 import asyncio
 from health_check import start_health_check_server
-from game.game_manager import game_manager, Player  # Import the GameManager and Player class
+from game.game_manager import game_manager  # Import the GameManager
+from game.player import Player  # Import the Player class
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
