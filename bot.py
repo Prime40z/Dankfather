@@ -1,9 +1,8 @@
-from discord.ext import commands
-import discord
+from bot_instance import bot  # Import the shared bot instance
 import logging
 import asyncio
 from health_check import start_health_check_server
-from game.game_manager import bot  # Import the bot instance from game_manager.py
+from game.game_manager import game_manager  # Ensure game_manager imports correctly
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
