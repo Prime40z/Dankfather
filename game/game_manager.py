@@ -3,6 +3,7 @@ import discord
 import logging
 from game.night_actions import NightActions
 from game.roles import ROLES
+import json
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -48,6 +49,7 @@ class Player:
 intents = discord.Intents.default()
 intents.messages = True  # Enable message-related events
 intents.guilds = True  # Enable guild-related events
+intents.message_content = True  # Enable Message Content Intent
 intents.presences = False  # Disable presence updates
 intents.typing = False  # Disable typing events
 
@@ -133,12 +135,19 @@ async def reset(ctx):
     await ctx.send("The game has been reset. All players have been removed.")
 
 
-# Optional: Filter unnecessary events
 @bot.event
 async def on_socket_event_type(event_data):
     """Filter and log only relevant events."""
-    if event_data["t"] in ["MESSAGE_CREATE", "GUILD_CREATE"]:  # Add required event types here
-        logging.debug(f"Relevant WebSocket Event: {event_data}")
+    try:
+        # Parse event_data if it's a string
+        if isinstance(event_data, str):
+            event_data = json.loads(event_data)
+
+        # Process the event if it's now a dictionary
+        if "t" in event_data and event_data["t"] in ["MESSAGE_CREATE", "GUILD_CREATE"]:
+            logging.debug(f"Relevant WebSocket Event: {event_data}")
+    except Exception as e:
+        logging.error(f"Error processing socket event: {e}")
 
 
 # Run the bot
