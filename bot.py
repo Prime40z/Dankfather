@@ -1,8 +1,8 @@
 from discord.ext import commands
 import discord
 import logging
-from health_check import start_health_check_server
 import asyncio
+from health_check import start_health_check_server
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -29,15 +29,19 @@ async def ping(ctx):
     """Simple ping command to test bot responsiveness."""
     await ctx.send("Pong!")
 
+async def main():
+    # Start health check server first
+    runner, site = await start_health_check_server()
+    
+    # Then start the bot
+    TOKEN = os.getenv("BOT_TOKEN")
+    await bot.start(TOKEN)
+
 if __name__ == "__main__":
     import os
-
     TOKEN = os.getenv("BOT_TOKEN")
     if not TOKEN:
-        raise ValueError("DISCORD_BOT_TOKEN environment variable is not set.")
-
-    # Start health check server
-    start_health_check_server()
-
-    # Run the bot
-    asyncio.run(bot.start(TOKEN))
+        raise ValueError("BOT_TOKEN environment variable is not set.")
+    
+    # Run both services in the same event loop
+    asyncio.run(main())
