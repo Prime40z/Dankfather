@@ -138,7 +138,7 @@ async def reset(ctx):
 if __name__ == "__main__":
     import os
 
-    TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+    TOKEN = os.getenv("BOT_TOKEN")
     if not TOKEN:
         raise ValueError("DISCORD_BOT_TOKEN environment variable is not set.")
     bot.run(TOKEN)
