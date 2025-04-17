@@ -13,10 +13,11 @@ discord_logger.setLevel(logging.WARNING)  # Suppress logs below WARNING from dis
 intents = discord.Intents.default()
 intents.messages = True  # Enable message-related events
 intents.guilds = True  # Enable guild-related events
+intents.message_content = True  # Enable Message Content Intent to allow command processing
 intents.members = False  # Disable member-related events (if not needed)
 intents.presences = False  # Disable presence updates
 
-# Initialize the bot
+# Initialize bot
 bot = commands.Bot(command_prefix="!", intents=intents)
 
 @bot.event
