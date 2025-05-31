@@ -1,11 +1,14 @@
 from bot_instance import bot  # Import the shared bot instance
 import logging
 import asyncio
-import blackjack
 import discord  # Import the discord module
 from health_check import start_health_check_server
 from game.game_manager import game_manager  # Import the GameManager
 from game.player import Player  # Import the Player class
+
+# Import and register blackjack commands
+from blackjack import setup_blackjack_commands
+setup_blackjack_commands(bot)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
