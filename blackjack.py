@@ -7,13 +7,24 @@ class BlackjackGame:
         self.hands = {}    # member.id -> list of hands (each hand is a list of cards)
         self.stands = {}   # member.id -> set of hand indexes that have stood/busted
         self.active_hand = {}  # member.id -> which hand they're playing now (for splits)
-        self.deck = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11] * 4
+        self.deck_mode = 'normal'  # 'normal' or 'stacked'
         self.house = []
         self.started = False
         self.turn_index = 0  # index in self.players
+        self.pending_action = None  # (player, action, hand_index)
+        self.allow_double = True  # can be used for a global enable/disable
 
-    def deal_card(self):
-        return random.choice(self.deck)
+    def deal_card(self, who='player'):
+        if self.deck_mode == "normal":
+            deck = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11] * 4
+            return random.choice(deck)
+        else:
+            if who == 'player':
+                deck = [2]*1 + [3]*1 + [4]*1 + [5]*2 + [6]*2 + [7]*2 + [8]*2 + [9]*2 + [10]*8 + [11]*1
+                return random.choice(deck)
+            else:  # dealer/house
+                deck = [2]*5 + [3]*5 + [4]*5 + [5]*2 + [6]*2 + [7]*2 + [8]*1 + [9]*1 + [10]*2 + [11]*1
+                return random.choice(deck)
 
     def hand_value(self, hand):
         total = sum(hand)
@@ -59,14 +70,14 @@ def setup_blackjack_commands(bot):
         if len(game.players) < 1:
             await ctx.send("Need at least 1 player to start.")
             return
-        # Deal cards
         for player in game.players:
-            game.hands[player.id] = [[game.deal_card(), game.deal_card()]]  # List of hands
+            game.hands[player.id] = [[game.deal_card('player'), game.deal_card('player')]]
             game.stands[player.id] = set()
             game.active_hand[player.id] = 0
-        game.house = [game.deal_card(), game.deal_card()]
+        game.house = [game.deal_card('house'), game.deal_card('house')]
         game.started = True
         game.turn_index = 0
+        game.pending_action = None
         await ctx.send("Blackjack started!\n" + await display_state(ctx, game))
 
     async def display_state(ctx, game):
@@ -80,31 +91,33 @@ def setup_blackjack_commands(bot):
                 marker = " ←" if (player == game.current_player() and i == game.active_hand[player.id]) else ""
                 msg += f"  Hand {i+1}: {hand} (Total: {total}){done}{marker}\n"
         msg += f"House shows: [{game.house[0]}, ?]\n"
-        msg += f"{game.current_player().mention}, it's your turn! Type `!bj_hit`, `!bj_stand`, `!bj_double` or `!bj_split`."
+        if game.pending_action:
+            p, action, _ = game.pending_action
+            msg += f"\nAwaiting dealer approval: {p.mention} requests **{action.upper()}**"
+        else:
+            msg += f"{game.current_player().mention}, it's your turn! Type `!bj_hit`, `!bj_stand`, `!bj_double` or `!bj_split`."
         return msg
 
     def can_double(game, member):
-        # Only if first action (exactly 2 cards), not already acted on this hand
         hand = game.current_hand(member)
-        return len(hand) == 2 and game.active_hand[member.id] not in game.stands[member.id]
+        return game.allow_double and len(hand) == 2 and game.active_hand[member.id] not in game.stands[member.id]
 
     def can_split(game, member):
         hand = game.current_hand(member)
-        return (len(hand) == 2 and hand[0] == hand[1] 
-                and len(game.hands[member.id]) < 4)  # Limit splits to 4 hands for sanity
+        return len(hand) == 2 and hand[0] == hand[1] and len(game.hands[member.id]) < 4
 
     @bot.command()
     async def bj_hit(ctx):
         game = games.get(ctx.channel.id)
-        if not game or not game.started:
-            await ctx.send("No active blackjack game. Start one with `!bj_start`.")
+        if not game or not game.started or game.pending_action:
+            await ctx.send("Cannot hit right now. (Game not started, or waiting on dealer approval for another action.)")
             return
         if ctx.author != game.current_player():
             await ctx.send("It's not your turn.")
             return
         hand = game.current_hand(ctx.author)
         idx = game.active_hand[ctx.author.id]
-        hand.append(game.deal_card())
+        hand.append(game.deal_card('player'))
         total = game.hand_value(hand)
         if total > 21:
             await ctx.send(f"{ctx.author.mention} busted on hand {idx+1}! {hand} (Total: {total})")
@@ -116,8 +129,8 @@ def setup_blackjack_commands(bot):
     @bot.command()
     async def bj_stand(ctx):
         game = games.get(ctx.channel.id)
-        if not game or not game.started:
-            await ctx.send("No active blackjack game. Start one with `!bj_start`.")
+        if not game or not game.started or game.pending_action:
+            await ctx.send("Cannot stand right now. (Game not started, or waiting on dealer approval for another action.)")
             return
         if ctx.author != game.current_player():
             await ctx.send("It's not your turn.")
@@ -129,67 +142,90 @@ def setup_blackjack_commands(bot):
 
     @bot.command()
     async def bj_double(ctx):
-        """Double down: double bet, one card, then stand."""
         game = games.get(ctx.channel.id)
         if not game or not game.started:
             await ctx.send("No active blackjack game. Start one with `!bj_start`.")
+            return
+        if game.pending_action:
+            await ctx.send("Another action is pending approval. Please wait.")
             return
         if ctx.author != game.current_player():
             await ctx.send("It's not your turn.")
             return
         if not can_double(game, ctx.author):
-            await ctx.send("You can only double down on your first move with two cards.")
+            await ctx.send("Double down is not allowed, or not possible at this time.")
             return
-        hand = game.current_hand(ctx.author)
         idx = game.active_hand[ctx.author.id]
-        hand.append(game.deal_card())
-        total = game.hand_value(hand)
-        game.stands[ctx.author.id].add(idx)
-        text = f"{ctx.author.mention} doubles down on hand {idx+1}! {hand} (Total: {total})"
-        if total > 21:
-            text += " — Busted!"
-        await ctx.send(text)
-        await advance_hand_or_turn(ctx, game, ctx.author)
+        game.pending_action = (ctx.author, "double", idx)
+        await ctx.send(f"{ctx.author.mention} requests DOUBLE DOWN on hand {idx+1}. Dealer must approve with `!bj_approve` or deny with `!bj_deny`.")
 
     @bot.command()
     async def bj_split(ctx):
-        """Split your hand if your first two cards are the same."""
         game = games.get(ctx.channel.id)
         if not game or not game.started:
             await ctx.send("No active blackjack game. Start one with `!bj_start`.")
+            return
+        if game.pending_action:
+            await ctx.send("Another action is pending approval. Please wait.")
             return
         if ctx.author != game.current_player():
             await ctx.send("It's not your turn.")
             return
         if not can_split(game, ctx.author):
-            await ctx.send("You can only split when your first two cards are the same.")
+            await ctx.send("Split is not allowed, or not possible at this time.")
             return
-
         idx = game.active_hand[ctx.author.id]
-        hand = game.current_hand(ctx.author)
-        card = hand[0]
-        # Remove current hand and add two new hands (each with one of the split cards)
-        game.hands[ctx.author.id].pop(idx)
-        game.hands[ctx.author.id].insert(idx, [hand[1], game.deal_card()])
-        game.hands[ctx.author.id].insert(idx, [card, game.deal_card()])
-        # Reset stands for these hands
-        game.stands[ctx.author.id] = set()
-        await ctx.send(f"{ctx.author.mention} splits! Now playing hand {idx+1}: {game.hands[ctx.author.id][idx]}")
-        await ctx.send(await display_state(ctx, game))
+        game.pending_action = (ctx.author, "split", idx)
+        await ctx.send(f"{ctx.author.mention} requests SPLIT on hand {idx+1}. Dealer must approve with `!bj_approve` or deny with `!bj_deny`.")
+
+    @bot.command()
+    async def bj_approve(ctx):
+        game = games.get(ctx.channel.id)
+        if not game or not game.started or not game.pending_action:
+            await ctx.send("No action pending approval.")
+            return
+        player, action, idx = game.pending_action
+        if action == "double":
+            hand = game.hands[player.id][idx]
+            hand.append(game.deal_card('player'))
+            total = game.hand_value(hand)
+            game.stands[player.id].add(idx)
+            text = f"{player.mention} double down approved on hand {idx+1}! {hand} (Total: {total})"
+            if total > 21:
+                text += " — Busted!"
+            await ctx.send(text)
+            await advance_hand_or_turn(ctx, game, player)
+        elif action == "split":
+            hand = game.hands[player.id][idx]
+            card = hand[0]
+            game.hands[player.id].pop(idx)
+            game.hands[player.id].insert(idx, [hand[1], game.deal_card('player')])
+            game.hands[player.id].insert(idx, [card, game.deal_card('player')])
+            game.stands[player.id] = set()
+            await ctx.send(f"{player.mention} split approved! Now playing hand {idx+1}: {game.hands[player.id][idx]}")
+            await ctx.send(await display_state(ctx, game))
+        game.pending_action = None
+
+    @bot.command()
+    async def bj_deny(ctx):
+        game = games.get(ctx.channel.id)
+        if not game or not game.started or not game.pending_action:
+            await ctx.send("No action pending approval.")
+            return
+        player, action, idx = game.pending_action
+        await ctx.send(f"{player.mention}, your {action.upper()} on hand {idx+1} was denied by the dealer.")
+        game.pending_action = None
 
     async def advance_hand_or_turn(ctx, game, member):
-        # Advance to next hand for this player, or next player if all hands done
         hands = game.hands[member.id]
         stands = game.stands[member.id]
         idx = game.active_hand[member.id]
-        # Move to next hand that isn't stood/busted
         for next_idx in range(idx+1, len(hands)):
             if next_idx not in stands:
                 game.active_hand[member.id] = next_idx
                 await ctx.send(f"{member.mention}, now playing hand {next_idx+1}.")
                 await ctx.send(await display_state(ctx, game))
                 return
-        # All hands done for this player
         if game.turn_index < len(game.players) - 1:
             game.turn_index += 1
             next_player = game.current_player()
@@ -199,18 +235,21 @@ def setup_blackjack_commands(bot):
             await finish_game(ctx, game)
 
     async def finish_game(ctx, game):
-        # Dealer plays
         house = game.house
         while game.hand_value(house) < 17:
-            house.append(game.deal_card())
+            house.append(game.deal_card('house'))
         house_total = game.hand_value(house)
         result_msg = f"House hand: {house} (Total: {house_total})\n\n"
         for player in game.players:
             for i, hand in enumerate(game.hands[player.id]):
                 total = game.hand_value(hand)
-                if total > 21:
+                if total > 21 and house_total > 21:
+                    result = "Both busted! House wins."
+                elif total > 21:
                     result = "Busted! House wins."
-                elif house_total > 21 or total > house_total:
+                elif house_total > 21:
+                    result = "Dealer busted! You win!"
+                elif total > house_total:
                     result = "You win!"
                 elif total == house_total:
                     result = "It's a tie!"
@@ -218,12 +257,49 @@ def setup_blackjack_commands(bot):
                     result = "House wins!"
                 result_msg += f"{player.mention}, Hand {i+1}: {hand} (Total: {total}) - **{result}**\n"
         await ctx.send(result_msg)
-        # Reset game for next round
         del games[ctx.channel.id]
 
     @bot.command()
+    async def bj_options(ctx, *args):
+        """
+        Secret advanced blackjack table options.
+        Usage: !bj_options shuffle/on/off double:on|off split:on|off
+        """
+        game = games.setdefault(ctx.channel.id, BlackjackGame())
+        msg = []
+        args = list(args)
+        if not args:
+            msg.append(f"Current advanced table mode: **{game.deck_mode}**")
+            msg.append(f"Double allowed: **{game.allow_double}**")
+        else:
+            for arg in args:
+                arg = arg.lower()
+                if arg in ['shuffle', 'on', 'stacked']:
+                    game.deck_mode = 'stacked'
+                    msg.append("Advanced table mode: custom shuffle ENABLED.")
+                elif arg in ['off', 'normal']:
+                    game.deck_mode = 'normal'
+                    msg.append("Advanced table mode: custom shuffle DISABLED.")
+                elif arg.startswith('double:'):
+                    val = arg.split(':', 1)[1]
+                    if val == 'on':
+                        game.allow_double = True
+                        msg.append("Double down ENABLED.")
+                    elif val == 'off':
+                        game.allow_double = False
+                        msg.append("Double down DISABLED.")
+                elif arg.startswith('split:'):
+                    val = arg.split(':', 1)[1]
+                    if val == 'on':
+                        game.allow_split = True
+                        msg.append("Split ENABLED.")
+                    elif val == 'off':
+                        game.allow_split = False
+                        msg.append("Split DISABLED.")
+        await ctx.send("\n".join(msg))
+
+    @bot.command()
     async def bj_reset(ctx):
-        """Reset the blackjack table in this channel."""
         if ctx.channel.id in games:
             del games[ctx.channel.id]
         await ctx.send("Blackjack table reset.")
