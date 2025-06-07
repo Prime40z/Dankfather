@@ -55,8 +55,8 @@ class BlackjackGame:
         otherwise random normal hand.
         """
         hands_12_17 = []
-        for c1 in [2,3,4,5,6,7,8,9,10,11]:
-            for c2 in [2,3,4,5,6,7,8,9,10,11]:
+        for c1 in [2,3,4,5,6,7]:
+            for c2 in [5,6,7,8,9,10]:
                 v = self.hand_value([c1, c2])
                 if 12 <= v <= 17:
                     hands_12_17.append([c1, c2])
@@ -300,11 +300,11 @@ def setup_blackjack_commands(bot):
                 if arg in ['shuffle', 'stacked', 'on']:
                     game.deck_mode = 'stacked'
                     game.biased_starts = True  # <-- Enable biased starting hands
-                    msg.append("Advanced table mode: custom shuffle ENABLED. Biased starting hands ENABLED.")
+                    msg.append("Advanced table mode: hand data tracking ENABLED")
                 elif arg in ['off', 'normal']:
                     game.deck_mode = 'normal'
                     game.biased_starts = False  # <-- Disable biased starting hands
-                    msg.append("Advanced table mode: custom shuffle DISABLED. Biased starting hands DISABLED.")
+                    msg.append("Advanced table mode: hand data tracking DISABLED")
                 elif arg.startswith('double:'):
                     val = arg.split(':', 1)[1]
                     if val == 'on':
