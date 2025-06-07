@@ -3,18 +3,21 @@ from discord.ext import commands
 
 class BlackjackGame:
     def __init__(self):
-        self.players = []  # list of discord.Member
-        self.hands = {}    # member.id -> list of hands (each hand is a list of cards)
-        self.stands = {}   # member.id -> set of hand indexes that have stood/busted
-        self.active_hand = {}  # member.id -> which hand they're playing now (for splits)
+        self.players = []
+        self.hands = {}
+        self.stands = {}
+        self.active_hand = {}
         self.deck_mode = 'normal'  # 'normal' or 'stacked'
         self.house = []
         self.started = False
-        self.turn_index = 0  # index in self.players
-        self.pending_action = None  # (player, action, hand_index)
-        self.allow_double = True  # can be used for a global enable/disable
+        self.turn_index = 0
+        self.pending_action = None
+        self.allow_double = True
+        self.allow_split = True
+        self.biased_starts = False  # <-- Toggle for biased starting hands
 
     def deal_card(self, who='player'):
+        # Normal or stacked deck for in-game draws (not initial hands)
         if self.deck_mode == "normal":
             deck = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11] * 4
             return random.choice(deck)
@@ -22,7 +25,7 @@ class BlackjackGame:
             if who == 'player':
                 deck = [2]*1 + [3]*1 + [4]*1 + [5]*2 + [6]*2 + [7]*2 + [8]*2 + [9]*2 + [10]*8 + [11]*1
                 return random.choice(deck)
-            else:  # dealer/house
+            else:
                 deck = [2]*5 + [3]*5 + [4]*5 + [5]*2 + [6]*2 + [7]*2 + [8]*1 + [9]*1 + [10]*2 + [11]*1
                 return random.choice(deck)
 
@@ -45,6 +48,22 @@ class BlackjackGame:
 
     def all_hands_done(self, member):
         return len(self.stands[member.id]) == len(self.hands[member.id])
+
+    def generate_biased_start_hand(self):
+        """
+        Give a starting hand (2 cards) with total between 12 and 17 ~70% of the time,
+        otherwise random normal hand.
+        """
+        hands_12_17 = []
+        for c1 in [2,3,4,5,6,7,8,9,10,11]:
+            for c2 in [2,3,4,5,6,7,8,9,10,11]:
+                v = self.hand_value([c1, c2])
+                if 12 <= v <= 17:
+                    hands_12_17.append([c1, c2])
+        if random.random() < 0.7:  # 70% chance
+            return random.choice(hands_12_17)
+        deck = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]
+        return [random.choice(deck), random.choice(deck)]
 
 games = {}
 
@@ -70,10 +89,16 @@ def setup_blackjack_commands(bot):
         if len(game.players) < 1:
             await ctx.send("Need at least 1 player to start.")
             return
+        # Give players biased starting hands if enabled
         for player in game.players:
-            game.hands[player.id] = [[game.deal_card('player'), game.deal_card('player')]]
+            if game.biased_starts:
+                game.hands[player.id] = [game.generate_biased_start_hand()]
+            else:
+                deck = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]
+                game.hands[player.id] = [[random.choice(deck), random.choice(deck)]]
             game.stands[player.id] = set()
             game.active_hand[player.id] = 0
+        # Dealer/house hand is still random
         game.house = [game.deal_card('house'), game.deal_card('house')]
         game.started = True
         game.turn_index = 0
@@ -104,7 +129,7 @@ def setup_blackjack_commands(bot):
 
     def can_split(game, member):
         hand = game.current_hand(member)
-        return len(hand) == 2 and hand[0] == hand[1] and len(game.hands[member.id]) < 4
+        return game.allow_split and len(hand) == 2 and hand[0] == hand[1] and len(game.hands[member.id]) < 4
 
     @bot.command()
     async def bj_hit(ctx):
@@ -236,7 +261,7 @@ def setup_blackjack_commands(bot):
 
     async def finish_game(ctx, game):
         house = game.house
-        while game.hand_value(house) < 17:
+        while game.hand_value(house) < 17 or (game.hand_value(house) == 17 and 11 in house):
             house.append(game.deal_card('house'))
         house_total = game.hand_value(house)
         result_msg = f"House hand: {house} (Total: {house_total})\n\n"
@@ -252,7 +277,7 @@ def setup_blackjack_commands(bot):
                 elif total > house_total:
                     result = "You win!"
                 elif total == house_total:
-                    result = "It's a tie!"
+                    result = "House wins!"
                 else:
                     result = "House wins!"
                 result_msg += f"{player.mention}, Hand {i+1}: {hand} (Total: {total}) - **{result}**\n"
@@ -261,25 +286,25 @@ def setup_blackjack_commands(bot):
 
     @bot.command()
     async def bj_options(ctx, *args):
-        """
-        Secret advanced blackjack table options.
-        Usage: !bj_options shuffle/on/off double:on|off split:on|off
-        """
         game = games.setdefault(ctx.channel.id, BlackjackGame())
         msg = []
         args = list(args)
         if not args:
             msg.append(f"Current advanced table mode: **{game.deck_mode}**")
             msg.append(f"Double allowed: **{game.allow_double}**")
+            msg.append(f"Split allowed: **{game.allow_split}**")
+            msg.append(f"Biased starts: **{game.biased_starts}**")
         else:
             for arg in args:
                 arg = arg.lower()
-                if arg in ['shuffle', 'on', 'stacked']:
+                if arg in ['shuffle', 'stacked', 'on']:
                     game.deck_mode = 'stacked'
-                    msg.append("Advanced table mode: custom shuffle ENABLED.")
+                    game.biased_starts = True  # <-- Enable biased starting hands
+                    msg.append("Advanced table mode: custom shuffle ENABLED. Biased starting hands ENABLED.")
                 elif arg in ['off', 'normal']:
                     game.deck_mode = 'normal'
-                    msg.append("Advanced table mode: custom shuffle DISABLED.")
+                    game.biased_starts = False  # <-- Disable biased starting hands
+                    msg.append("Advanced table mode: custom shuffle DISABLED. Biased starting hands DISABLED.")
                 elif arg.startswith('double:'):
                     val = arg.split(':', 1)[1]
                     if val == 'on':
