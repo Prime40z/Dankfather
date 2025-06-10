@@ -14,10 +14,9 @@ class BlackjackGame:
         self.pending_action = None
         self.allow_double = True
         self.allow_split = True
-        self.biased_starts = False  # <-- Toggle for biased starting hands
+        self.biased_starts = False  # Toggle for biased starting hands
 
     def deal_card(self, who='player'):
-        # Normal or stacked deck for in-game draws (not initial hands)
         if self.deck_mode == "normal":
             deck = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11] * 4
             return random.choice(deck)
@@ -50,17 +49,13 @@ class BlackjackGame:
         return len(self.stands[member.id]) == len(self.hands[member.id])
 
     def generate_biased_start_hand(self):
-        """
-        Give a starting hand (2 cards) with total between 12 and 17 ~70% of the time,
-        otherwise random normal hand.
-        """
         hands_12_17 = []
-        for c1 in [2,3,4,5,6,7]:
-            for c2 in [5,6,7,8,9,10]:
+        for c1 in [2,3,4,5,6,7,8,9,10,11]:
+            for c2 in [2,3,4,5,6,7,8,9,10,11]:
                 v = self.hand_value([c1, c2])
                 if 12 <= v <= 17:
                     hands_12_17.append([c1, c2])
-        if random.random() < 0.7:  # 70% chance
+        if random.random() < 0.7:
             return random.choice(hands_12_17)
         deck = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]
         return [random.choice(deck), random.choice(deck)]
@@ -89,7 +84,6 @@ def setup_blackjack_commands(bot):
         if len(game.players) < 1:
             await ctx.send("Need at least 1 player to start.")
             return
-        # Give players biased starting hands if enabled
         for player in game.players:
             if game.biased_starts:
                 game.hands[player.id] = [game.generate_biased_start_hand()]
@@ -98,7 +92,6 @@ def setup_blackjack_commands(bot):
                 game.hands[player.id] = [[random.choice(deck), random.choice(deck)]]
             game.stands[player.id] = set()
             game.active_hand[player.id] = 0
-        # Dealer/house hand is still random
         game.house = [game.deal_card('house'), game.deal_card('house')]
         game.started = True
         game.turn_index = 0
@@ -277,7 +270,7 @@ def setup_blackjack_commands(bot):
                 elif total > house_total:
                     result = "You win!"
                 elif total == house_total:
-                    result = "House wins!"
+                    result = "It's a tie!"
                 else:
                     result = "House wins!"
                 result_msg += f"{player.mention}, Hand {i+1}: {hand} (Total: {total}) - **{result}**\n"
@@ -299,12 +292,12 @@ def setup_blackjack_commands(bot):
                 arg = arg.lower()
                 if arg in ['shuffle', 'stacked', 'on']:
                     game.deck_mode = 'stacked'
-                    game.biased_starts = True  # <-- Enable biased starting hands
-                    msg.append("Advanced table mode: hand data tracking ENABLED")
+                    game.biased_starts = True
+                    msg.append("Advanced table mode: custom shuffle ENABLED.")
                 elif arg in ['off', 'normal']:
                     game.deck_mode = 'normal'
-                    game.biased_starts = False  # <-- Disable biased starting hands
-                    msg.append("Advanced table mode: hand data tracking DISABLED")
+                    game.biased_starts = False
+                    msg.append("Advanced table mode: custom shuffle DISABLED.")
                 elif arg.startswith('double:'):
                     val = arg.split(':', 1)[1]
                     if val == 'on':
