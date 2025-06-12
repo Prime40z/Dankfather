@@ -109,20 +109,27 @@ async def run_bot_forever():
         raise ValueError("BOT_TOKEN environment variable is not set.")
     while True:
         try:
+            logging.info("Starting bot...")
             await bot.start(TOKEN)
         except Exception as e:
             logging.error(f"Bot crashed with error: {e}. Restarting in 5 seconds...")
             await asyncio.sleep(5)
 
 async def run_health_check():
+    logging.info("Starting health check server...")
     runner, site = await start_health_check_server()
+    logging.info("Health check server running. Blocking forever...")
     await asyncio.Event().wait()  # Block forever
 
 async def main():
+    logging.info("Main starting. Running bot and health check concurrently.")
     await asyncio.gather(
         run_bot_forever(),
         run_health_check()
     )
+    logging.info("Main exited! This should never happen unless both tasks stopped.")
 
 if __name__ == "__main__":
+    print("Launching async main()...")
     asyncio.run(main())
+    print("asyncio.run(main()) exited! This should never print!")
