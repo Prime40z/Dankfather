@@ -103,11 +103,16 @@ async def on_ready():
     except Exception as e:
         logging.error(f"Error in on_ready: {e}")
 
-async def run_bot():
+async def run_bot_forever():
     TOKEN = os.getenv("BOT_TOKEN")
     if not TOKEN:
         raise ValueError("BOT_TOKEN environment variable is not set.")
-    await bot.start(TOKEN)
+    while True:
+        try:
+            await bot.start(TOKEN)
+        except Exception as e:
+            logging.error(f"Bot crashed with error: {e}. Restarting in 5 seconds...")
+            await asyncio.sleep(5)
 
 async def run_health_check():
     runner, site = await start_health_check_server()
@@ -115,7 +120,7 @@ async def run_health_check():
 
 async def main():
     await asyncio.gather(
-        run_bot(),
+        run_bot_forever(),
         run_health_check()
     )
 
