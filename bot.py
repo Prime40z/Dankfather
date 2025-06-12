@@ -7,18 +7,16 @@ from health_check import start_health_check_server
 from game.game_manager import game_manager  # Import the GameManager
 from game.player import Player  # Import the Player class
 
-# Import and register blackjack commands
 from blackjack import setup_blackjack_commands
 setup_blackjack_commands(bot)
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 discord_logger = logging.getLogger("discord")
-discord_logger.setLevel(logging.WARNING)  # Suppress logs below WARNING from discord library
+discord_logger.setLevel(logging.WARNING)
 
 @bot.command()
 async def join(ctx):
-    """Command for users to join the game."""
     if game_manager.game_started:
         await ctx.send("The game has already started. You cannot join now.")
         return
@@ -29,14 +27,13 @@ async def join(ctx):
         player = Player(ctx.author)
         game_manager.players.append(player)
         if not game_manager.host:
-            game_manager.host = ctx.author  # Set the first player as the host
+            game_manager.host = ctx.author
             await ctx.send(f"{ctx.author.mention} has joined the game and is now the host!")
         else:
             await ctx.send(f"{ctx.author.mention} has joined the game!")
 
 @bot.command()
 async def leave(ctx):
-    """Command for users to leave the game."""
     if game_manager.game_started:
         await ctx.send("The game has already started. You cannot leave now.")
         return
@@ -58,7 +55,6 @@ async def leave(ctx):
 
 @bot.command()
 async def start(ctx):
-    """Command to start the game."""
     if ctx.author != game_manager.host:
         await ctx.send("Only the host can start the game.")
         return
@@ -67,7 +63,6 @@ async def start(ctx):
 
 @bot.command()
 async def reset(ctx):
-    """Command to reset the game."""
     if ctx.author != game_manager.host:
         await ctx.send("Only the host can reset the game.")
         return
@@ -80,7 +75,6 @@ async def reset(ctx):
 
 @bot.command()
 async def kick(ctx, member: discord.Member):
-    """Command to kick a player from the game."""
     if ctx.author != game_manager.host:
         await ctx.send("Only the host can kick players.")
         return
@@ -94,7 +88,6 @@ async def kick(ctx, member: discord.Member):
 
 @bot.command()
 async def party(ctx):
-    """Command to display the current list of players."""
     if not game_manager.players:
         await ctx.send("There are no players in the game.")
         return
@@ -116,13 +109,14 @@ async def run_bot():
         raise ValueError("BOT_TOKEN environment variable is not set.")
     await bot.start(TOKEN)
 
-async def main():
-    # Start health check server
+async def run_health_check():
     runner, site = await start_health_check_server()
-    # Run both the bot and a dummy forever waiter so the process never exits
+    await asyncio.Event().wait()  # Block forever
+
+async def main():
     await asyncio.gather(
         run_bot(),
-        asyncio.Event().wait()  # keeps the process alive forever
+        run_health_check()
     )
 
 if __name__ == "__main__":
