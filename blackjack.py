@@ -1,5 +1,8 @@
 import random
+import discord
 from discord.ext import commands
+
+games = {}
 
 class BlackjackGame:
     def __init__(self):
@@ -36,6 +39,9 @@ class BlackjackGame:
             aces -= 1
         return total
 
+    def is_natural_blackjack(self, hand):
+        return len(hand) == 2 and self.hand_value(hand) == 21
+
     def current_player(self):
         if self.turn_index < len(self.players):
             return self.players[self.turn_index]
@@ -60,9 +66,7 @@ class BlackjackGame:
         deck = [2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10, 11]
         return [random.choice(deck), random.choice(deck)]
 
-games = {}
-
-def setup_blackjack_commands(bot):
+def setup_blackjack_commands(bot: commands.Bot):
     @bot.command()
     async def bj_join(ctx):
         game = games.setdefault(ctx.channel.id, BlackjackGame())
@@ -257,16 +261,30 @@ def setup_blackjack_commands(bot):
         while game.hand_value(house) < 17 or (game.hand_value(house) == 17 and 11 in house):
             house.append(game.deal_card('house'))
         house_total = game.hand_value(house)
+        house_natural = game.is_natural_blackjack(house)
         result_msg = f"House hand: {house} (Total: {house_total})\n\n"
         for player in game.players:
             for i, hand in enumerate(game.hands[player.id]):
                 total = game.hand_value(hand)
-                if total > 21 and house_total > 21:
+                player_natural = game.is_natural_blackjack(hand)
+                if player_natural and not house_natural:
+                    result = "Blackjack! (Natural) You win!"
+                elif house_natural and not player_natural:
+                    result = "House has blackjack! (Natural) House wins!"
+                elif player_natural and house_natural:
+                    result = "Both have blackjack! It's a tie!"
+                elif total > 21 and house_total > 21:
                     result = "Both busted! House wins."
                 elif total > 21:
                     result = "Busted! House wins."
                 elif house_total > 21:
                     result = "Dealer busted! You win!"
+                elif total == 21 and house_total == 21:
+                    result = "It's a tie!"  # both made 21 with more than 2 cards
+                elif total == 21:
+                    result = "21! But not a natural blackjack."
+                elif house_total == 21:
+                    result = "House has 21! House wins."
                 elif total > house_total:
                     result = "You win!"
                 elif total == house_total:
@@ -320,4 +338,4 @@ def setup_blackjack_commands(bot):
     async def bj_reset(ctx):
         if ctx.channel.id in games:
             del games[ctx.channel.id]
-        await ctx.send("Blackjack table reset.")
+        await ctx.send("Blackjack game reset.")
